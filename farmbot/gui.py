@@ -4893,7 +4893,7 @@ class FarmbotWindow(FluentWindow):
                                                     ONLY_HELP, "buildings")
         self.pickers["upgrade.research_only"] = self._picker(
             ups, "upgrade.research_only", HOME_RESEARCH, "Only this research", RESEARCH_HELP,
-            "troops, spells and Squads", tiles=True)
+            "troops, spells, sieges and Squads", tiles=True)
         self.pickers["upgrade.equipment_only"] = self._picker(
             ups, "upgrade.equipment_only", HOME_EQUIPMENT, "Only this equipment", EQUIPMENT_HELP, "equipment",
             tiles=True)

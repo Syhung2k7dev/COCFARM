@@ -657,7 +657,7 @@ class UpgradeConfig:
     # ``farmbot/tasks/row_names.py``); empty: any. The Town Hall, walls and
     # heroes have their own settings.
     only: list[str] = field(default_factory=list)
-    # Research only this (troops, spells, siege machines; first to last); empty: any.
+    # Research only this (troops, spells, siege machines and Squads; first to last); empty: any.
     research_only: list[str] = field(default_factory=list)
     # Hero equipment, at the Blacksmith with ore (Shiny, Glowy, Starry): no
     # builder, done at once (``farmbot/tasks/equipment.py``). Its place in

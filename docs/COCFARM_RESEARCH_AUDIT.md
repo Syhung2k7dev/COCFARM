@@ -1231,3 +1231,15 @@ Primary references:
 - No emulator interaction was performed. Do not infer screen coordinates or consume resources from this change.
 - The focused test was added but not executed in this GitHub-only edit session. Do not mark CI as passed without an observed Actions run.
 
+
+
+### Separate Magic Snacks and Magic Items paths
+
+A further runtime review distinguishes two inventories that must not be conflated:
+
+- The Snack Box is controlled by `BotConfig.use_snacks`, which defaults to `false`. When enabled, `bot._snacks()` calls `farmbot.tasks.snacks.use_snacks()`. That routine uses any visible green `Use` ribbon and confirms the snack window, up to ten items per pass. It does **not** identify the snack's name or effect before consuming it. This is a broad “use available snacks” setting, not a selective upgrade-item policy. Keep it off when the requirement is to use only upgrade-relevant items.
+- The Magic Items inventory has separate templates `buttons/magic_items` and `buttons/magic_items_title`. The current `farmbot/tasks/magic_items.py::open_inventory()` only opens the inventory when the button is positively matched and verifies the title. It explicitly does not select or consume an item.
+- No runtime call to the Magic Items policy/executor was found in `farmbot/bot.py` at commit `0601ad27`. Therefore the user-approved “automatically use eligible upgrade items” behavior is **not yet live**; the pure policy and target-discovery foundation must not be described as an active consumer.
+- Do not solve this by turning on `use_snacks`: that would consume all currently usable snacks rather than only items whose effect and target are approved by the upgrade policy.
+
+The research-only settings comment and picker label were also updated to include Squads and siege machines consistently.
