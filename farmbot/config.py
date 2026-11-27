@@ -721,6 +721,7 @@ DISTRICT_ORDERS = ("destroyed", "stars")
 class BuilderConfig:
     """Builder base battles (see ``farmbot/tasks/builder.py``)."""
 
+    attack_enabled: bool = True  # skip battles but keep builder-base maintenance when off
     corner: str = "auto"  # where the army goes in: auto = farthest from the base
     use_hero: bool = True
     # Swap to the other builder hero before a base when the current one's

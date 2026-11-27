@@ -1,0 +1,991 @@
+> **Current project context (updated 2026-11-28):** This document was recovered from the historical `Syhung2k7dev/CoC_Bot` research branch and moved here as a reference. The active project is **COCFARM itself**; this repository is the sole runtime and implementation base. Do not interpret historical references to a “migration branch” or CoC_Bot as a plan to move COCFARM into CoC_Bot. Historical findings, repository links, PR/issue reviews, and design references are retained below. Where earlier notes conflict with later user decisions, the **Updated project decisions** section and the current project decisions below take precedence. No third-party source code is imported merely by retaining these notes.
+
+> **Implementation status:** Active development branch: [`cocfarm-enhancements`](https://github.com/Syhung2k7dev/COCFARM/tree/cocfarm-enhancements). Current verified change: [`70aff2b`](https://github.com/Syhung2k7dev/COCFARM/commit/70aff2bb4805285ca8ec3d23afc222b8fb977b51), optional Builder Base attack toggle. This is not merged into `main`.
+
+> **Current decisions:** No Dry Run mode; auto-use eligible instant-upgrade items with item-specific eligibility/capacity; never spend gems or paid currency automatically; Boost & Timer Engine is optional and user-enabled; local OCR/CV only; no Telegram, Web Dashboard, iPhone Shortcut, or external AI/OCR service. Keep safeguards for unknown screens, re-identification, bounded actions, and post-action verification.
+
+---
+
+# COCFARM research and engineering audit
+
+Status: second source-level audit pass completed for configuration, search/attack flow, device access, account profiles, emulator management and upstream open PRs/issues. Runtime validation and full module-by-module comparison remain in progress.
+
+## Target decision
+
+Use **COCFARM** as the implementation base. Do not carry over Telegram notifications, the CoC_Bot web dashboard, iPhone Shortcuts, or mandatory third-party AI OCR. Keep local OCR and computer vision. Preserve task-level controls.
+
+## Audited source snapshots
+
+- COCFARM: `BilinP/COCFARM`, `main`, commit `46ddfa032e81baea8a6c62824468bea7c19ee413` (tree inspected 2026-11-28).
+- Latest COCFARM release: `v1.9.8`, published 2026-11-23. Its `COCFARM-windows.zip` release asset publishes a SHA-256 digest.
+- CoC_Bot: `Syhung2k7dev/CoC_Bot`, `main`, commit `00c400a60a454d971a1132bb3607c04ecde3cd36`.
+
+## Confirmed feature comparison
+
+| Capability | COCFARM | CoC_Bot | Migration note |
+|---|---|---|---|
+| Home Village farming/search/attack | Present | Present | Keep COCFARM implementation; compare attack strategies and configuration depth later. |
+| Builder Base farming | Present | Present | Keep COCFARM implementation; verify edge cases and current game UI compatibility. |
+| Building, hero, lab, pet upgrades | Present | Present | COCFARM exposes separate settings and ordering. |
+| Hero equipment upgrades | Present (`tasks/equipment.py`, `UpgradeConfig.equipment`) | No equivalent found in inspected source tree | COCFARM advantage; retain. |
+| Clan Capital / Raid Weekend | Present (`tasks/capital.py`) | No equivalent module found | COCFARM advantage; retain. |
+| Clan War / Ranked | Present (`tasks/war.py`, `tasks/ranked.py`) | No equivalent module found | COCFARM advantage; retain. |
+| Clan Games | Present (`tasks/clan_games.py`) | No equivalent module found | COCFARM advantage; retain. |
+| Clan troop requests / donations | Present (`tasks/clan.py`, `tasks/donate.py`) | No equivalent module found | COCFARM advantage; retain. |
+| Super Troops | Present (`tasks/super_troops.py`) | No equivalent module found | COCFARM advantage; retain. |
+| Multiple emulator instances / accounts | Present (`instances.py`, `accounts.py`) | Present | Both support multiple instances and account-specific settings; COCFARM has profile matching by in-game player-name image and shared/per-account config separation. |
+| Scheduling / breaks | Present (`ScheduleConfig`, bot scheduler) | Present in a different form (`CHECK_INTERVAL`, idle suspend and task loop) | COCFARM has richer play-window, daily-attack limit, random break and day-off scheduling; CoC_Bot focuses on periodic upgrade/attack checks. |
+| Per-task controls | Separate settings across `Config` groups | Central `Task_Handler` exclusion list | COCFARM has most major toggles but not an exact one-to-one model; see detailed comparison below. |
+| CV / template matching | OpenCV template matching and image analysis | OpenCV/template matching | Keep COCFARM vision stack unless tests show a concrete regression. |
+| Local OCR | Windows OCR for words; custom glyph matching for numbers | EasyOCR locally; native macOS OCR | COCFARM does not need Groq to read ordinary UI text/numbers. |
+| External AI OCR | Not required / no provider integration found | Optional Groq + Llama 4 Scout | Exclude from migration scope unless later accuracy tests justify it. |
+| Desktop GUI | PySide6 / Fluent Widgets | Desktop GUI | Keep COCFARM GUI as the base. |
+| Web Dashboard | Not found in COCFARM main tree | Present | Explicitly out of scope. |
+| Telegram notifications | Not found | Present | Explicitly out of scope. |
+| iPhone Shortcut | Not found | Present | Explicitly out of scope. |
+| Loot history | CSV attack history and GUI history page | Not confirmed equivalent | Keep COCFARM history. |
+| Discord notifications | Present | Not confirmed | Optional; user has not asked to remove it. |
+
+“Not found” means no corresponding implementation was identified in the inspected default-branch source; it is not a claim that no experimental branch or external integration exists.
+
+## OCR / CV findings
+
+COCFARM uses three complementary approaches:
+
+1. `farmbot/vision.py`: OpenCV template matching for buttons, icons, cards and UI elements.
+2. `farmbot/text.py`: custom digit segmentation and glyph classification for resource counts; glyphs can be learned from screenshots.
+3. `farmbot/ocr.ps1` and `farmbot/ocr_lines.ps1`: Windows' built-in OCR for text and text-line positions.
+
+Relevant consumers include `tasks/search.py` (loot numbers) and `tasks/clan_games.py` (challenge text). The README instructs users to set Clash of Clans to English. This means the intended baseline is local OCR + CV, not an external AI service.
+
+## Task exclusion / configuration finding
+
+CoC_Bot's `src/utils.py::Task_Handler` defines a central exclusion vocabulary for home/building/lab/pet upgrades, attacks, assistants and priorities. The exclusion list is obtained from its local or remote GUI endpoint.
+
+COCFARM instead exposes settings directly in its configuration model and GUI, including:
+- `upgrade.enabled`, `upgrade.pets`, `upgrade.heroes`, `upgrade.lab`, `upgrade.buildings`, `upgrade.equipment`;
+- `builder.upgrade`, `builder.upgrade_heroes`, `builder.upgrade_lab`, `builder.upgrade_buildings`;
+- `clan.donate`, `clan.request_troops`, `capital.raid`, `war.enabled`, `ranked.enabled`, `clan_games.enabled`;
+- `search.maintain_only` and village mode controls.
+
+Most task groups already have native COCFARM controls. The exact parity is not complete: CoC_Bot has explicit `ATTACK_HOME_BASE` and `ATTACK_BUILDER_BASE` switches, while COCFARM selects `home`, `builder`, or `auto` farming mode and has `search.maintain_only`; it does not expose the same two independent attack booleans in the inspected config. CoC_Bot also has explicit switches to disable priority-based selection (`PRIORITY_*`), whereas COCFARM uses ordered upgrade lists and per-kind filters (`order`, `only`, `research_only`, `equipment_only`) without an equivalent global random-vs-priority toggle found so far. COCFARM's `UpgradeConfig` does expose `apprentice` and `lab_assistant`, matching CoC_Bot's assistant switches. Recommendation: do not port the central exclusion service or GUI/API machinery; add only the missing native settings if the user wants independent attack toggles and a priority-disable option. Keep a central task-exclusion list as optional convenience, not a required migration.
+
+## Initial engineering / security observations
+
+- COCFARM's `farmbot/update.py` checks the release asset size and, when GitHub supplies it, SHA-256. The inspected latest release does supply a SHA-256 digest.
+- `unpack()` checks archive paths are under the expected `COCFARM/` root and rejects parent traversal, absolute paths, and colon-containing paths before extraction.
+- The updater does not verify a publisher signature; the checksum is obtained from GitHub's release metadata. Treat GitHub account/repository compromise as outside that checksum's protection.
+- COCFARM parses TOML with Python's `tomllib`, uses JSON/CSV for local state, and controls emulators through ADB/subprocesses.
+- The COCFARM tree has no `tests/` directory in the inspected main commit, although `pyproject.toml` configures pytest and CI builds the Windows executable and runs its `--self-test`. This is not a substitute for a comprehensive unit/integration suite.
+- Large modules deserve maintainability review: `farmbot/gui.py` (~406 KB), `farmbot/bot.py` (~136 KB), and `farmbot/tasks/attack.py` (~107 KB). CoC_Bot also has large modules (`src/utils.py`, `src/upgrader.py`), so code size alone is not a reason to transplant its architecture.
+- Licensing differs: COCFARM is GPL-3.0-or-later; CoC_Bot is MIT. Any combined distributed derivative must comply with GPL-3.0-or-later and preserve applicable copyright/license notices.
+
+
+
+## Second-pass findings: task configuration, emulator and runtime risks
+
+### CoC_Bot exclusion controls vs COCFARM controls
+
+CoC_Bot's `Task_Handler.task_defaults` (in `src/utils.py`) contains these independently overrideable keys:
+- Upgrade priority toggles: `home_base_priority`, `home_lab_priority`, `pet_house_priority`, `builder_base_priority`, `builder_lab_priority`.
+- Upgrade category toggles: `heroes`, `home_base`, `builder_base`, `home_lab`, `builder_lab`, `pet_house`.
+- Farming toggles: `home_attacks`, `builder_attacks`.
+- Assistants: `lab_assistant`, `builder_apprentice`.
+
+COCFARM's inspected `farmbot/config.py` already has:
+- Home upgrades: `upgrade.enabled`, `pets`, `heroes`, `lab`, `buildings`, `equipment`, plus ordered selection and allow-lists.
+- Builder upgrades: `builder.upgrade`, `upgrade_heroes`, `upgrade_lab`, `upgrade_buildings`.
+- Assistants: `upgrade.apprentice`, `upgrade.lab_assistant`.
+- Clan/other jobs: `clan.request_troops`, `clan.donate`, `capital.raid`, `ranked.enabled`, `war.enabled`, `clan_games.enabled`.
+- Farming mode: `BotConfig.mode` supports `home`, `builder`, `auto`; `SearchConfig.maintain_only` stops searching and just maintains the village.
+
+Differences worth considering for a later optional enhancement:
+1. Independent Home and Builder attack enable switches are explicit in CoC_Bot; COCFARM's mode selector is not exactly the same control.
+2. CoC_Bot can disable priority selection and fall back to random order; COCFARM's upgrade order is explicitly configured and no equivalent priority master-switch was found.
+3. COCFARM has broader controls than CoC_Bot for attack strategy, troop deployment, spells, hero walks, war/ranked star focus, and resource thresholds. Do not replace this with CoC_Bot's simpler attack configuration.
+4. The user explicitly wants task exclusions retained. Prefer adding a small native COCFARM "disabled tasks" layer only if it improves usability beyond existing per-section switches; do not import its old local/remote HTTP dependency.
+
+### Emulator/device compatibility
+
+- COCFARM `DeviceConfig.mode` supports BlueStacks, LDPlayer, MuMu and manual ADB serial. Its device abstraction is ADB-first and documents that any ADB-exposing emulator or real Android phone can be driven manually.
+- CoC_Bot's current config supports BlueStacks, MuMu and LDPlayer. The repository's latest commit specifically added LDPlayer 9 support and multi-instance reliability fixes.
+- COCFARM's multi-farm support exists, but current main does not include a shared active-BlueStacks concurrency cap. Open PR #39 proposes such a cap for one COCFARM GUI hub only; it explicitly does not coordinate multiple separate COCFARM processes and does not cap LDPlayer, MuMu or manual devices.
+- COCFARM's per-account profiles use the visible player name and keep device/regions/notifications/profile registry shared, while gameplay settings are profile-specific. This is more directly tailored to several Clash of Clans accounts than CoC_Bot's per-instance config structure.
+
+### Upstream PRs not merged into the audited main commit
+
+All three PRs below target COCFARM main commit `46ddfa0` and were open when checked on 2026-11-28. Their code is therefore **not part of the audited main snapshot**:
+- [PR #40 — Builder troop count / no-hero deployment](https://github.com/BilinP/COCFARM/pull/40): reports a real Builder Base bug when no hero is unlocked; the proposed patch adds a count guard and stops the farm after uncertain troop-count reads. PR author reports 14 portable tests and two live no-hero attacks, but the fix still depends on cached village metadata.
+- [PR #39 — BlueStacks active-instance cap](https://github.com/BilinP/COCFARM/pull/39): optional concurrency cap to reduce memory pressure. Reported validation includes focused offline tests and a bounded live collection-only trial; it does not validate attacks/upgrades under the cap. Not a blanket multi-emulator scheduler.
+- [PR #38 — Deploy standalone Clan Castle troops without Siege Machine](https://github.com/BilinP/COCFARM/pull/38): reports a Home Village bug where donated Clan Castle troops are ignored when no siege machine is present. The proposed fix has synthetic tests and two supervised live attacks with different clan emblems.
+
+### Open upstream issues relevant to reliability
+
+At the same time, COCFARM had open issues including:
+- [#25 Donation flow bugs](https://github.com/BilinP/COCFARM/issues/25): reports failed donations when Clan Castle capacity fills concurrently, incomplete siege-machine donation and only handling the top request.
+- [#29 Donation selection and MuMu zoom issues](https://github.com/BilinP/COCFARM/issues/29): reports missed donation troop selection and zoom-out failures on MuMu.
+- [#30 Royal Champion walk issues](https://github.com/BilinP/COCFARM/issues/30): reports missed Invisibility Spell placements and Rocket Spear level handling.
+- [#22 Spell placement randomness](https://github.com/BilinP/COCFARM/issues/22): reports spell placement not behaving as configured.
+- [#40 no-hero Builder deployment](https://github.com/BilinP/COCFARM/issues/40) is addressed by open PR #40, not by audited main.
+- [#38 standalone Clan Castle troop detection](https://github.com/BilinP/COCFARM/issues/38) is addressed by open PR #38, not by audited main.
+
+These issue reports are not proof that every user will reproduce the bugs. They are concrete test cases that should be covered before calling the migration stable. Donation and spell deployment deserve particular attention because the upstream issue list includes several reports in those areas.
+
+### Tests and CI clarification
+
+The inspected COCFARM main tree has no committed `tests/` directory, although the project configures pytest and CI builds the Windows executable and runs its packaged `--self-test`. The open PRs above include or describe additional focused tests in their contribution branches. Do not confuse those PR-only tests with tests already present in main. The migration branch should add a maintained regression suite before merging these fixes.
+
+## Updated next steps
+
+1. Complete exact settings parity and GUI wiring, especially independent attack toggles and priority-disable behavior.
+2. Review PR #38, #39 and #40 patches against main; selectively port only after checking dependencies and tests.
+3. Audit donation, spell placement, Royal Champion walk, Builder no-hero deployment and MuMu zoom regressions.
+4. Finish detailed module review of attack/deployment, upgrades, scheduler, device recovery, multi-instance lifecycle, persistence and GUI.
+5. Build regression tests around real screenshots and synthetic cases; then run bounded emulator validation.
+6. Only after those checks, begin feature integration and cleanup on the user's own migration branch. Do not edit upstream COCFARM.
+
+
+## Additional feature differences found in attack controls
+
+The default CoC_Bot config has two controls that are not represented one-to-one in the inspected COCFARM config/form:
+- `EXCLUDE_CLAN_TROOPS`: CoC_Bot can skip cards it classifies as donated Clan Castle troops during Home attacks. COCFARM's `armybar.py` classifies troop/spell/single/siege cards and its attack loop deploys troop cards; no equivalent user-facing skip-donated-troops switch was found. COCFARM does have separate Clan Castle lure logic for star-focused attacks, which is not the same control.
+- `ATTACK_SLOT_RANGE`: CoC_Bot can limit deployment to a configured range of troop-bar slots and scroll the bar to continue scanning. No corresponding slot-range control was found in COCFARM. COCFARM's deployment loop is more sophisticated in other respects: it reads troop counts again, checks whether units actually deployed, retries rejected points, and can fall back to fixed deployment lines.
+
+These are real CoC_Bot-only configuration features found in code, but their practical importance is optional. If retained, implement them as native COCFARM attack settings, with safe defaults preserving current COCFARM behavior (deploy all eligible cards; do not silently exclude donated troops).
+
+## Attack automation comparison
+
+- COCFARM has much richer deployment strategy settings: side selection, spread vs loot-oriented deployment, waves, troop/wave pacing, siege use, super troop boosts, hero abilities by delay/health, hero walks, Spirit Fox timing, spell selection/placement, Earthquake paths, funneling, star-focused deployment, league bonus farming, early battle exit conditions, and optional human-like deployment rhythms.
+- CoC_Bot's attack controls are simpler: global troop deployment timing, selected troop-card slot range, and optional exclusion of donated Clan Castle troops. Its attack path uses screenshot/template detection, card-edge profiling and batch deployment; after attacks it closes/restarts the game app to complete the battle.
+- COCFARM also has game-update handling: its bot detects the game's Play Store "new version" window and invokes the game-update path. CoC_Bot README mentions automatic game app updates, but no matching implementation was confirmed in the inspected source files yet; keep this item marked for follow-up rather than asserting parity.
+- COCFARM's `maintain_only` setting is a Home Village no-attack mode: `Bot.cycle()` still runs village maintenance and pre-farming war/ranked jobs, then skips the normal Home attack. It does not provide an equivalent independent Builder Base attack-off switch: `builder_cycle()` proceeds to `builder.attack()` after its maintenance/upgrades unless the round is diverted/stopped for another reason. CoC_Bot explicitly has both `ATTACK_HOME_BASE` and `ATTACK_BUILDER_BASE`. This is a concrete migration gap for users who want Builder Base upgrades/collection without Builder attacks.
+
+## Current migration candidates (not yet implemented)
+
+Priority candidates, based on actual differences rather than copying CoC_Bot wholesale:
+1. Add `builder.attack_enabled` to COCFARM's config, form model, GUI, example TOML, validation and builder cycle. Default `true` to preserve current behavior.
+2. Consider an explicit `home.attack_enabled` switch instead of relying only on `search.maintain_only`, if a clearer paired control is preferred.
+3. Consider `attack.exclude_clan_troops` and `attack.slot_start/slot_end` as optional controls only if the user wants those CoC_Bot behaviors. Defaults must preserve COCFARM's current all-card behavior.
+4. Consider an optional priority master-switch that selects randomly when disabled; do not replace COCFARM's richer ordered allow-lists.
+5. Assess PR #39's BlueStacks-only concurrency cap separately; its limitations must be visible in the GUI.
+
+
+## Other CoC_Bot-only operational options
+
+The CoC_Bot template config also contains:
+- `SUSPEND_EMULATOR_ON_IDLE`: optional emulator process suspension during idle periods to reduce resource use. COCFARM has `human.offline_breaks`, which closes the Clash of Clans app during breaks/outside playing hours, but no equivalent emulator-suspend setting was found. These are not the same behavior.
+- `DISABLE_DEVICE_SLEEP`: keeps the host PC awake while the bot runs (Windows/macOS-specific implementation). No matching host-sleep prevention setting was found in COCFARM's config/form. This may be useful for long unattended runs but should be an opt-in feature with clear battery/power implications.
+- macOS desktop/runtime support. COCFARM's current GUI, Windows OCR PowerShell scripts, scheduled-task wake-up and emulator adapters are Windows-oriented. This is not a practical loss if the target machine is Windows.
+
+COCFARM already has automatic emulator launch, emulator standardization, automatic game restart and emulator recovery, plus an optional Windows Task Scheduler wake-up between upgrades. CoC_Bot's emulator suspend feature should be considered separately; do not assume COCFARM automatically shuts down or suspends the emulator when idle. COCFARM's offline-break setting closes the game app, not the emulator VM.
+
+
+## Third-pass deep dive: Clan donations, Builder Base deployment and PR review
+
+### Clan donation implementation (COCFARM main)
+
+The current main implementation in `farmbot/tasks/donate.py` is substantially more complete than the older open bug reports alone suggest:
+- Detects donation cards using image matching against local troop-picture assets and classifies available/greyed-out cards by saturation.
+- Reads the requester's Clan Castle room from the request bubble using local glyph OCR, then chooses a preset army for the matching Castle level when no explicit main troop list is configured.
+- Supports prioritized main troops, optional fill with the largest eligible troop, selected Siege Machines, selected spells, and request-specific troop lists.
+- Pages horizontally through troop/spell cards, flicks to the end for Siege Machines, and returns to earlier pages when filling is needed.
+- Detects gem-priced donation mode and refuses to spend gems.
+- Checks whether each tap actually changed donation counters / donated-unit strip; retries one missed tap and raises `Refused` when the request filled or the game refuses the donation.
+- Iterates multiple chat requests (up to `MAX_OPENS = 12`) and tracks already handled request bubbles so new/moved requests can be handled without looping forever.
+- Clan request flow reads the request cooldown and waits out short cooldowns; it also has a separate Army-window request path when configured to empty the Castle first.
+
+This is evidence that COCFARM has the donation features that were missing or unreliable in older versions. However, issue [#25](https://github.com/BilinP/COCFARM/issues/25) and [#29](https://github.com/BilinP/COCFARM/issues/29) remain open in the upstream issue tracker as checked on 2026-11-28. #25 reports concurrent-fill refusal/crash, Siege Machine paging, only donating to the top request, slow request cooldown handling; #29 reports certain troop cards not being clicked and MuMu zoom-out failure. The current code contains explicit handling for each of the donation workflow features described, but no committed main-branch automated donation regression suite was found. Do not assume those user-reported cases are fully resolved until the exact scenarios are replayed against the current release and main.
+
+### Clan Castle donated troops during attacks: PR #38
+
+PR #38 is a targeted fix for a distinct attack-bar recognition bug. The current army-bar classifier distinguishes counted troops, spells, heroes, Siege Machines and empty slots. The PR adds a separate `castle` card type for standalone Clan Castle troops (cyan frame, no level badge), avoids mistaking the Clan emblem for a Siege Machine level badge, treats it as a single-deployment card, and prevents Siege Machine/hero ability logic from being applied to it.
+
+The PR adds synthetic OpenCV tests for different Clan emblems, dashed empty slots, Siege Machine toggle behavior, successful/refused deployment, and single deployment dispatch. These are useful offline regression tests with synthetic pixels rather than player screenshots. They do not replace a live supervised test across supported emulator scales/themes, but they are meaningful coverage. The fix should be reviewed for integration and likely adopted after validating its base/head compatibility; it directly addresses a real missing case in the current attack recognition path.
+
+### Builder Base no-hero deployment: PR #40
+
+PR #40 addresses a serious correctness issue: without a Builder Base hero, the bot's old first-troop position was offset incorrectly and the deployment loop treated a card as a single unit rather than reading its count. The proposed patch:
+- Loads cached village/hero metadata before deciding the Builder Base hero layout.
+- Shifts the first troop slot left when there is no hero.
+- Reads troop counts with local glyph recognition and validates confidence/range.
+- Verifies that each deployment reduced the count before continuing.
+- If the count is unknown or an input's effect is uncertain, stops further deployments, saves the error screen and waits for the natural battle result instead of blindly retrying.
+- Adds synthetic tests for no-hero/hero cases, counted troops, unknown counts, uncertain first taps and preventing automatic recovery/re-admission after uncertain deployment.
+
+This is a safety/correctness-oriented patch and should be strongly considered for adoption after a focused code review. Its key invariant is important: an uncertain deployment must not be replayed automatically, since that could send unintended additional troops.
+
+### BlueStacks concurrency cap: PR #39
+
+PR #39 is not a general emulator limit. It adds a per-COCFARM-window queue for BlueStacks farms only, with verified ownership/exit checks, queueing, pause/stop behavior, round handoff, held slots when cleanup cannot be verified, and a per-PC setting. It explicitly does not cap LDPlayer, MuMu or manual ADB devices and does not coordinate separate COCFARM processes.
+
+The PR adds a comparatively broad synthetic test set covering queue fairness, dynamic limit changes, worker lifecycle, startup cancellation, ownership/exit ambiguity, GUI behavior and round handoff. This is useful if several BlueStacks instances are run simultaneously on a RAM-limited PC. It is optional and should not be ported blindly: the process inventory and native window-title ownership logic are Windows/BlueStacks-specific and add substantial complexity. First establish whether the user's actual emulator count and RAM pressure justify it.
+
+### Current risk ranking after this pass
+
+1. **High: troop deployment correctness** — adopt/review PR #38 and #40, then validate against live game screens.
+2. **High: donation regression scenarios** — despite a mature implementation, open issues #25/#29 and lack of committed main-branch tests justify targeted tests and supervised runs.
+3. **Medium: multi-BlueStacks memory pressure** — PR #39 is optional, scoped, and complex; only adopt if needed.
+4. **Medium: spell placement and Royal Champion walk** — issue #22 and #30 remain concrete scenarios to reproduce and test.
+5. **Low for the current Windows target: macOS support** — no need to port CoC_Bot's macOS-specific code.
+
+### Next source audit tasks
+
+1. Trace all PR #38 and #40 changed lines against the audited main snapshot and verify their patches apply cleanly to the exact current base.
+2. Review donation issue #25/#29 against current donation code and create tests for full-while-donating, paging to Siege Machines, multiple requests, and request cooldown.
+3. Audit spell placement and Royal Champion walk against issues #22/#30.
+4. Check game-update flow and all emulator recovery branches.
+5. Then implement only the accepted migration gaps on the user's own branch, with config/form/example/validation/tests updated together.
+
+
+## Fourth-pass deep dive: spell placement and Hero Walk
+
+### Spell placement (issue #22)
+
+Current COCFARM main contains explicit mechanisms for both modes:
+- `spell_placement = "together"`: one common point selected by `spell_spot`; the default is `"random"`, chosen inside the middle portion of the base and deliberately kept away from the previous battle's spot when possible.
+- `spell_placement = "spread"`: points are distributed around the base using a golden-angle sequence with a randomized starting angle and small per-point jitter. This is designed to avoid a straight line and distribute spells around the deploy ring.
+- Star-focused battles derive the spell point from the attack push direction and configured depth; the random variant perturbs around that push point.
+- Earthquake spells have separate path/spot targeting and a configurable count per opening point; funneling can send a small troop/hero group ahead of the main army.
+
+This is a substantial algorithmic answer to the behavior described in open issue [#22](https://github.com/BilinP/COCFARM/issues/22). However, the issue remains open and no committed automated test suite for screenshot-derived spell coordinates was found in main. Verify that the GUI maps the "Together/Spread" and "Random/Middle" settings correctly, then replay repeated attacks with identical bases and record the coordinates. A code-level random generator does not by itself prove the deployed coordinates are valid or sufficiently varied.
+
+### Royal Champion / Archer Queen Hero Walk (issue #30)
+
+The current `farmbot/tasks/walk.py` contains a detailed visual tracking and timing system:
+- Detects the hero from her health bar, card hue and level badge; pale/hidden sightings are confirmed across multiple looks.
+- Tracks movement direction from recent sightings, predicts forward only for a bounded time window, and refuses to cast at stale/unknown locations.
+- Places Invisibility ahead of a moving hero, bounded by the spell circle's radius, rather than repeatedly targeting the last seen coordinate.
+- Detects when she leaves the current spell circle and can queue another spell before the old coverage expires.
+- Detects likely missed spells from health loss and from the hero remaining visible after the expected landing time; avoids repeatedly using the same failed coordinate.
+- Accounts for Spirit Fox invisibility/cooldown timing and can use the Royal Champion's Rocket Spear level from the village export to decide when to fire her ability early.
+- Uses frequent looks (nominally 0.1 s) to track health and location; the algorithm has multiple thresholds and heuristics calibrated in comments against observed in-game behavior.
+
+These code paths directly target the failure modes described by issue [#30](https://github.com/BilinP/COCFARM/issues/30): stale coordinates, spells landing behind a moving Champion, leaving the invisibility circle, and Rocket Spear level not being considered. Yet #30 is still open in the issue tracker. The implementation is complex and heuristic; without replaying the reported scenarios, do not mark the issue resolved. This is one of the highest-value live-validation areas because a mistaken sighting can waste spells and cause the hero to fall early.
+
+### Deployment point detection
+
+The Home attack path does not rely on one fixed deployment line alone:
+- First tries the red deploy boundary via HSV/shape checks (`redline.py`).
+- Finds the building area via bright grass, building clusters, and texture analysis (`deployzone.py`) for maps/sceneries where grass color is unreliable.
+- Excludes UI regions and screens points based on surrounding ground/obstruction.
+- Uses fixed per-side lines as a last-resort fallback.
+- Checks whether troops actually deployed by re-reading the troop card/count; if no first deployment succeeds and the screen is still zoomed in, it attempts a forced zoom-out and recalculates points once.
+
+This is a layered strategy and materially more sophisticated than CoC_Bot's simpler card/edge deployment path. Its weakness is reliance on screen appearance, scale, scenery and template/glyph calibration; regression fixtures should include grass, city/stone/snow scenery, low Town Hall layouts, zoomed-in views and UI overlays.
+
+### Game update flow
+
+COCFARM's `farmbot/gameupdate.py` is a separate Android UIAutomator-based update flow:
+- Recognizes the game's update dialog from OCR text and the Update button.
+- Opens the Play Store, uses UIAutomator XML to find Update/Open/Play controls, and watches the installed package version.
+- Handles unsigned-in Play Store, no-update state, long installs, stopping/restarting the game after install, and a long first-load wait.
+- The updater is not a generic app store installer; it is specific to the Clash of Clans package and Android Play Store behavior.
+
+CoC_Bot's README claims automatic game updates, but no equivalent implementation was confirmed in the inspected CoC_Bot source paths. This is currently a COCFARM strength; test with a controlled emulator/update state rather than trying to trigger a real game update during ordinary farming.
+
+### Updated risk ranking
+
+1. **High: live deployment correctness** — PR #38 and #40 are not in audited main; review and selectively integrate, then validate.
+2. **High: donations** — current code has robust workflow logic, but open #25/#29 and no committed focused tests leave important race/paging cases unproven.
+3. **High: Hero Walk** — the code contains specific fixes for #30, but the issue remains open; verify on a controlled test account.
+4. **Medium: spell placement** — algorithms address #22, but validate actual coordinate diversity and placement on real layouts.
+5. **Medium: multi-emulator RAM cap** — PR #39 is optional and BlueStacks-only; do not adopt unless needed.
+6. **Medium: scenery and zoom robustness** — test all deployment-point detection fallbacks across emulator resolutions and map themes.
+
+## Current decision after four audit passes
+
+COCFARM remains the better functional base for the intended Windows desktop migration. The code review so far has not uncovered a reason to reverse the platform choice. However, this is still a source-level assessment: do not call the migrated bot stable until the deployment PRs are reviewed, the open donation/attack reports are reproduced or disproven, and bounded emulator tests pass.
+
+
+
+## Fifth-pass deep dive: upgrade engine and progression tracking
+
+### COCFARM upgrade architecture
+
+The COCFARM upgrade engine is not just a loop over fixed screen coordinates. The inspected source shows:
+- Reads the game's live Build list, applies resource/type filters and sorts by Cost Max, then identifies affordable rows.
+- Separately handles new/unbuilt buildings, Town Hall prerequisites, walls, hero upgrades, pets, laboratory research and Hero Equipment.
+- Uses a configurable ordered list of upgrade categories and optional ordered allow-lists for buildings, research and equipment.
+- Tracks remaining resource budgets between upgrades so it does not repeatedly assume the original storage amount is still available.
+- Reads builder availability and laboratory availability, can retain a chosen number of builders, and keeps a builder free for walls when configured.
+- Avoids spending gems: an upgrade window with a gem price is closed unpaid.
+- Detects locked upgrades and passes over rows that repeatedly fail rather than tapping them every round.
+- Uses an account-specific upgradable survey saved beside the village export, invalidated when Town Hall/Laboratory levels change and refreshed daily.
+- Assigns Builder's Apprentice and Lab Assistant to eligible ongoing work.
+- Handles Builder Base separately with its own resource budgets, builders and Star Laboratory.
+
+### CoC_Bot upgrade comparison
+
+CoC_Bot has the core upgrade categories and user-defined priority lists for Home and Builder Base. It also has explicit booleans for priority-vs-random behavior and a maximum number of upgrades per check. Its implementation is more coordinate/template-driven and has repeated OCR/template searches for builder counts and lab availability.
+
+COCFARM's upgrade flow is more integrated with the live Build list and current village export. It has category ordering, name allow-lists, resource accounting, Town Hall/new-building handling, walls hand-off, equipment/ore upgrades, daily surveys and helper assignment. CoC_Bot's explicit random-order fallback is a small convenience gap, not a reason to transplant its upgrader. If desired, add a native COCFARM use_priority_order setting later; default it on so current behavior is preserved.
+
+### Potential upgrade risks to validate
+
+1. OCR/template recognition of the Build list rows and prices after game UI updates.
+2. Correct resource budget tracking when several upgrades start in one round and resources are spent concurrently.
+3. Town Hall prerequisite handling and newly unlocked buildings after Town Hall upgrades.
+4. Builder limits and keeping one builder free for walls.
+5. Hero Equipment ownership/max-level interpretation from the village export, especially Epic equipment whose export level may not mean it is owned.
+6. Recovery when the Build list or a confirmation dialog fails to appear.
+7. Builder Base upgrade behavior with a missing/ambiguous builder count or a busy Star Laboratory.
+
+No code changes to the upgrade engine are justified from this comparison yet. The main missing CoC_Bot convenience is a global random-vs-priority switch; COCFARM's ordered category and allow-list system should remain intact.
+
+
+## Sixth-pass deep dive: scheduler, recovery, OCR dependencies and unattended operation
+
+### COCFARM scheduler
+
+COCFARM's schedule is richer than CoC_Bot's periodic check loop:
+- Selects local active hours (0-23), with optional randomized start/stop offsets at the edges of active-hour windows.
+- Chooses a daily attack limit randomly within a configured minimum/maximum range.
+- Supports random breaks after a range of attack counts and random break durations.
+- Supports a day off at a configured frequency and optional daily summaries.
+- Supports "Close between upgrades": once relevant builders/labs are busy, it can close the game and schedule a one-off Windows Task Scheduler job to reopen COCFARM after the earliest upgrade finishes.
+- Supports "Pause when idle" without closing the COCFARM process; it stops attacks and waits for upgrade completion.
+- In Auto mode it can move between Home Village and Builder Base based on selected storage fullness.
+
+CoC_Bot's template config exposes a simple CHECK_INTERVAL and task loop, but no equivalent rich active-hour/day-off/random daily attack schedule was found in the inspected source. COCFARM is a clear advantage here.
+
+### Recovery and failure containment
+
+COCFARM's main loop distinguishes known non-recoverable states from recoverable round failures:
+- Game refresh/update events return to searching rather than being treated as generic crashes.
+- A blocked attack is handled by closing the game, waiting a randomized 3-5 minute window and reopening.
+- A Supercell maintenance break is waited out, with periodic checks and a maximum wait.
+- Not-logged-in, wrong-account and game-not-installed conditions stop rather than blindly retry.
+- Other round failures save the error screenshot, write diagnostics, notify if configured, restart the game and then restart the emulator if the game restart fails and a reopen callback is available.
+- Consecutive failures are capped; the bot stops after the configured internal threshold rather than looping forever.
+- Error screenshots are retained in a bounded set per account/farm.
+- Pause/stop checkpoints are designed to act between safe actions, not in the middle of a battle.
+
+This is a substantial resilience advantage. Still validate recovery on deliberately induced safe failures (ADB disconnect, game process closed, maintenance screen simulation, missing template) rather than forcing disruptive real-game failures.
+
+### OCR and CV dependency correction
+
+The OCR stack in COCFARM has three distinct local mechanisms:
+1. OpenCV template matching and color/shape analysis for buttons, cards, troop bars, spell icons, deploy boundaries and other visual UI.
+2. Custom glyph segmentation/classification in `farmbot/text.py` for numeric values such as loot, troop counts, timers and Clan Castle room capacities. Digits are learned from local screenshots via the font/glyph workflow.
+3. Windows built-in OCR via `farmbot/ocr.ps1` and `farmbot/ocr_lines.ps1` for actual words/text and line positions, used by player-name recognition, game-update dialogs, Build-list row names, equipment names, Clan Games challenge names and other text-based UI paths.
+
+Therefore it is not accurate to say COCFARM recognizes all text only through CV. It uses CV plus local glyph OCR plus the Windows OCR engine. None of these require Groq, Llama, a remote AI OCR API or uploading screenshots to a third-party model. The Windows OCR scripts require Windows 10 or later and depend on available Windows OCR language packs. The README's English game-language recommendation remains relevant because UI labels and templates are English-centric.
+
+### Unattended-operation tradeoffs
+
+- COCFARM's "Close game when not playing" closes the Clash of Clans app, not the emulator VM.
+- Its scheduled wake-up is Windows Task Scheduler based and uses an interactive logged-in session; it does not set WakeToRun, so it should not be described as waking a sleeping/off PC.
+- CoC_Bot's DISABLE_DEVICE_SLEEP attempts to keep the host awake; COCFARM has no equivalent setting found. This is an optional convenience gap, not a farming-feature gap.
+- CoC_Bot's SUSPEND_EMULATOR_ON_IDLE suspends emulator processes; COCFARM's offline-break behavior is not equivalent.
+- For the intended personal Windows PC, these two power-management features can be considered optional future additions. Do not add them without testing their effects on ADB, emulator integrity and Windows power behavior.
+
+### Updated migration assessment
+
+The source audit now supports choosing COCFARM as the base with high confidence for the target Windows desktop workflow. It has the more extensive farming/clan/upgrade features, more sophisticated scheduling and richer failure recovery. CoC_Bot-only features still worth deciding on are:
+- Independent Builder Base attack on/off switch.
+- Optional exclusion of donated Clan Castle troop cards during attacks.
+- Optional troop-bar slot range.
+- Optional global priority-vs-random upgrade selection.
+- Optional host-awake and emulator-suspend power management.
+These should be implemented as small native COCFARM config/UI additions only if desired, not by importing CoC_Bot's dashboard/API or rewriting COCFARM subsystems.
+
+
+
+## Seventh-pass deep dive: GUI, profiles, local data, updater and user-facing operation
+
+### Desktop GUI and configuration model
+
+COCFARM's GUI is a native PySide6 / Qt 6 desktop application with Fluent Widgets. The pages cover Dashboard, Home Village, Builder Base, Wars & Raids, When to Play, Like a Person, History, Farms/accounts and Advanced. Settings are TOML-backed, validated as they are edited, saved automatically once valid, and picked up by a running bot at its next safe step. It has light/dark/follow-Windows themes, keyboard shortcuts, onboarding and a status/problem explanation layer.
+
+The GUI is not a web dashboard or local HTTP service. This matches the user's preference for a personal desktop-only application and avoids importing CoC_Bot's web server/API architecture.
+
+### Multi-account profile handling
+
+Profiles are account-specific and stored as:
+- `profiles/<player-name>.toml`: the account's settings.
+- `profiles/<player-name>.png`: a cropped/masked player-name image used to distinguish accounts visually.
+- `profiles/<player-name>.village.json`: the account's Data Export used to know its Town Hall, unlocks, levels and ongoing upgrades.
+
+PC-wide settings (emulator, screen regions, notifications, profile list and selected app theme/update settings) remain in the main `farmbot.toml`. Each farm has its own emulator configuration, history and error screenshots under `instances/<n>/`; account profiles and templates are shared across farms. The GUI supports starring a default profile, copying settings, renaming and deleting profiles. It blocks rename/delete while a farm is actively using that profile. Removing a farm preserves its folder as `removed-<n>` rather than immediately deleting its history.
+
+Account recognition uses the player's visible name image and Windows OCR; uncertain matches are not silently switched. If OCR cannot read a name, a fallback Account N profile is created and can be renamed later. This is a sensible fail-closed design, but verify two accounts with similar names and an OCR-unreadable name before relying on unattended multi-account operation.
+
+### Local data and privacy boundaries
+
+The inspected source stores settings, attack history (CSV), error screenshots, account name pictures, and village exports locally beside the app. The game Data Export is read locally from a file copied by the user; no cloud account is required for it. The normal farming/vision path does not upload screenshots or village exports to an AI/OCR service.
+
+The only clear optional outbound services in this area are GitHub release/update checks and Discord webhooks. Discord is disabled unless the user enters a webhook URL. Telegram notifications from CoC_Bot are out of scope. COCFARM's existing optional Discord webhook is separate; do not add Telegram, and leave the Discord integration unchanged until the user explicitly decides whether to use it. Treat `farmbot.toml`, profile TOMLs, village JSON, screenshots and logs as private user data: never commit them to the public source repository or include them in bug reports without reviewing/redacting them. A Discord webhook URL, if ever configured, is a credential and must not be shared.
+
+### Important migration-specific updater setting
+
+The current COCFARM default is `bot.update_repo = "BilinP/COCFARM"`, with `check_updates = true`. If the migrated application is customized in `Syhung2k7dev/CoC_Bot` (or a new repository) but keeps this default, the built app will continue checking and downloading the upstream COCFARM release, not the user's customized build. That could replace the user's customized program with an upstream release and effectively discard the migration in the installed copy.
+
+Before publishing a customized release, change the default update repository to the user's chosen repository and verify its release asset naming/checksum. Until that repository publishes compatible releases, turn automatic update checks off in the migrated build. Do not point the updater at a repository that does not yet contain compatible COCFARM release assets.
+
+### Updater implementation and limits
+
+The updater:
+- Checks GitHub releases using ETags and rate-limit backoff.
+- Downloads the Windows zip with resumable chunks.
+- Checks the asset's declared size and SHA-256 digest when GitHub provides one.
+- Rejects archives whose paths escape the expected `COCFARM/` root or contain parent traversal, absolute paths or colon characters, and requires `COCFARM/COCFARM.exe`.
+- Installs with a separate PowerShell process after the app exits, retains user data folders, and attempts rollback if moving the new program files fails.
+- Does not self-update when run from source; source users should update via Git.
+
+The checksum is not a publisher signature. It proves the downloaded bytes match the digest returned by GitHub's release metadata, but it does not protect against compromise of the repository, release account or GitHub publishing credentials. Keep the updater disabled until the customized repository/release flow is configured. For the first migrated releases, publish manually and verify the release artifact/checksum independently.
+
+### GUI and usability migration conclusion
+
+No major GUI feature from CoC_Bot needs to be transplanted. COCFARM already has a native desktop interface, profile management, per-account settings, history, onboarding and emulator management. The only GUI work justified so far is exposing the small accepted control gaps (especially Builder Base attack enable/disable) and removing/hiding unused Discord settings only if doing so does not make future upstream merges harder. Prefer leaving the unused Discord integration dormant rather than deleting large chunks of upstream code.
+
+
+
+## Eighth-pass deep dive: build pipeline, dependency supply chain, tests and release security
+
+### Build and packaging
+
+COCFARM is packaged as a Windows PyInstaller `--onedir` application, then zipped as `COCFARM-windows.zip`. The build bundles the GUI, OpenCV, assets, emulator helpers, local OCR PowerShell scripts, profiles shipped as examples, third-party notices and license texts. The runtime folder is intentionally portable: settings, account profiles, history, screenshots and logs live beside it. The build script refuses to overwrite a `dist/COCFARM` folder that already contains farm data, which helps prevent accidental loss during a rebuild.
+
+The project supports Python 3.11+ in `pyproject.toml`; CI currently builds on Python 3.12 and Windows. Dependencies are declared as minimum versions rather than exact pins, and there is no dependency lockfile or hash-locked requirements set. This makes fresh builds less reproducible: a later compatible dependency release may change behavior or packaging.
+
+### CI workflow finding: excessive write permission during PR builds
+
+The only workflow, `.github/workflows/windows-exe.yml`, sets workflow-wide `permissions: contents: write`. The same job checks out the branch/PR source, installs dependencies, executes `packaging/build.py`, and runs the built executable's self-test. That means untrusted code from a same-repository pull request can run in a job whose token is configured for write access; checkout also normally persists its Git credentials unless disabled. GitHub restricts tokens for fork-originated PRs, but same-repository PRs are a different trust boundary.
+
+Before using this workflow in the user's repository, split it:
+- Build/test jobs should use `permissions: contents: read` (or no write permission) and `actions/checkout` with `persist-credentials: false`.
+- A separate release-publish job should run only for trusted version tags or a manually approved release path and receive `contents: write`.
+- Pin third-party Actions to reviewed full commit SHAs rather than movable version tags, and review updates deliberately.
+- Never run a release-publishing job against untrusted pull-request code.
+
+This is a concrete CI hardening item, not evidence that the current local bot leaks user data.
+
+### Test coverage actually present in main
+
+The recursive tree of the audited main commit contains no committed `tests/` directory. Although `pyproject.toml` configures pytest and the development dependencies include pytest/pytest-xdist, the current Windows workflow does not run pytest. It builds the executable and invokes `--self-test`, which opens every GUI page, checks that required shipped templates exist, and imports OpenCV.
+
+That self-test is useful for packaging and missing-resource regressions, but it does not exercise attack deployment, donation, OCR recognition, upgrade decisions, scheduler edge cases, updater rollback, multi-instance claims or profile switching. Several open PRs add synthetic tests, but they are not present in main. A migration should establish a real portable test suite before changing core behavior.
+
+### Release integrity and trust
+
+The updater validates the downloaded asset's declared size and SHA-256 digest when GitHub's release metadata supplies them. It does not verify a publisher signature or a signed provenance attestation. The current release having a SHA-256 digest is good, but the digest is delivered by the same GitHub repository/release trust domain as the asset. A compromised repository maintainer account or release pipeline could replace both.
+
+The Windows executable is not Authenticode-signed in the inspected workflow. README therefore warns that Windows may show an unknown publisher. This is a user-trust/reputation limitation, not by itself proof of malicious code. For the user's own releases, consider signing only if a trusted code-signing certificate is available; do not download third-party certificates or disable Windows security checks to suppress warnings.
+
+### Licensing and redistribution
+
+The audited COCFARM main declares GPL-3.0-or-later and includes third-party notices and license texts for its packaged dependencies. CoC_Bot's previous MIT license does not override the license of the imported COCFARM code. If the user distributes a modified executable/source bundle, retain the upstream copyright/license notices, provide the corresponding GPL source and comply with GPL-3.0-or-later obligations. Private local modification is a different situation from public redistribution; this should be revisited before publishing a binary or sharing it with others.
+
+### Data and diagnostic handling
+
+COCFARM writes normal logs, crash traces, per-account history and screenshots locally. The diagnostic bundle can include platform/Python/game/emulator facts and log context; review the exact report before posting it publicly. Account names, profile images, village exports, emulator serials/ports, paths and webhook URLs should be treated as potentially sensitive. Add a safe redaction pass before any bug-report export is attached to a public GitHub issue.
+
+### Final source-audit conclusion
+
+The remaining code-reading audit is complete enough to start implementation planning. COCFARM is still the right base, but the migration must not simply copy its tree and publish it unchanged. The minimum pre-release engineering tasks are:
+1. Change or disable the upstream update repository default before the customized build can self-update.
+2. Add the independent Builder Base attack enable/disable control and its tests.
+3. Review and selectively integrate PR #38 and #40 for attack-bar/Builder Base deployment correctness.
+4. Add focused tests for donations, spells, Hero Walk, profiles, config migration and updater extraction/rollback.
+5. Harden the GitHub Actions permissions and release job separation.
+6. Keep user settings/profiles/screenshots/logs out of Git and add diagnostic redaction.
+7. Preserve GPL-3.0-or-later and third-party notices in any distributed derivative.
+
+The audit branch still contains documentation only. No COCFARM source tree has been imported, no CoC_Bot source code has been rewritten, and no emulator/live-game tests have been run.
+
+
+## Ninth-pass deep dive: persistence paths and exact Builder Base control insertion points
+
+### Settings and GUI save lifecycle
+
+- The settings model is a hierarchy of dataclasses in `farmbot/config.py`; `load_config()` merges TOML into known fields, applies migrations for removed/renamed settings, then calls `Config.validate()`. Unknown settings are rejected rather than silently accepted.
+- The GUI maps controls to dotted config paths, validates the collected form on every change, and uses a single-shot 400 ms timer to autosave. Invalid values stop the timer, so the GUI does not persist a partially invalid configuration. Lazy-built pages retain pending values so settings on unopened tabs are not lost during a save.
+- `save_config()` preserves comments/layout by editing changed TOML lines where possible, and falls back to a full TOML rewrite when that cannot be done. The final write is a direct `Path.write_text()`, not a temp-file + atomic replace; no cross-process file lock is visible in this module. This is a hardening candidate for crash/power-loss safety, not proof of an existing data-loss incident.
+- The GUI's current Builder Base page already has an **Attacking** tab, with controls for corner, hero, troop timing, abilities, speed and second-base behavior. A global enable/disable switch belongs at the top of this tab, rather than in the Home Village search settings.
+
+### Account, farm and history persistence
+
+- Account profile files are saved as TOML, with a companion player-name picture and optional village export. Profile names are sanitized for Windows-invalid filename characters; collisions are handled case-insensitively. Account switching uses image similarity thresholds and deliberately refuses to switch when the match is ambiguous.
+- Each emulator farm has its own `farmbot.toml`, attack CSV, and error-screen folder. The list of farms selected to start is stored separately in `instances/picked.json`. Account profiles and templates are shared. Removing a farm preserves its folder under a `removed-<n>` name.
+- Attack history is append-only CSV, with a header created for a new file. Readers skip malformed rows, and the GUI calculates daily totals and per-hour loot from the records. No explicit file lock is present in the history writer; per-farm history separation reduces ordinary contention, but shared/custom history paths should be tested.
+- Profile TOML, profile images, village exports, `picked.json`, storage snapshots and logs are runtime data. They must remain outside Git and must not be copied into release artifacts or public diagnostics without deliberate redaction.
+
+### Updater data-preservation check
+
+The installer preserves a fixed set of root-level names (settings, history, logs, screenshots, update state and templates) and overlays files present in the new release. The current profile and multi-farm directories are runtime-created beside the application and are not part of the packaged program tree. Keep that separation explicit: if a future release ever ships root-level `profiles/` or `instances/`, add them to the installer's preservation rules and test an update with existing accounts/farms before publishing. The customized build must also replace or disable the upstream `BilinP/COCFARM` update repository default before self-update is enabled.
+
+### Exact implementation seam: independent Builder Base attack toggle
+
+The smallest native parity change is `builder.attack_enabled`:
+1. Add a boolean field to `BuilderConfig` in `farmbot/config.py`, defaulting to `true` to preserve current behavior.
+2. Add it to `farmbot.example.toml` and the GUI's existing Builder Base → Attacking tab, above the deployment controls. Use the existing typed binding/validation path; no new API or central task-exclusion service is needed.
+3. In `Bot.builder_cycle()`, keep the existing navigation, account check, resource collection, Clock Tower/cart work, upgrades and walls. After those maintenance jobs, skip only the battle path when the switch is off; run the existing no-battle cleanup so selected objects/zoom are restored, and do not increment attack counters or write a fake attack record.
+4. Confirm the scheduler's return-value and checkpoint semantics before choosing the skip return path. Add tests for both enabled (identical current behavior) and disabled (maintenance still runs, no battle starts, counters/history unchanged), including Clan Games behavior if a Builder Base challenge is active.
+5. Leave Home Village attack behavior unchanged. Do not add donated-troop exclusion, slot-range limits, priority randomization, emulator suspension or host-awake behavior in this same patch; those remain separate optional decisions.
+
+### Updated status
+
+The GUI, settings model, profile/farm storage, attack history and updater code-reading pass is complete. No COCFARM source code has been imported or modified by this audit update, and no emulator/live-game validation has been performed. The next implementation step is to build the migration branch's regression-test scaffold and implement the isolated Builder Base attack toggle only after checking scheduler semantics and the active Clan Games path.
+
+
+### Scheduler semantics verified after the ninth-pass review
+
+`Bot.run()` treats a cycle returning `False` as a maintenance/no-attack round and waits at least `IDLE_WAIT`; it does not increment the attack count itself. The Builder Base cycle currently increments its own attack counters only after `builder.attack()` returns. Therefore the disabled path must return `False`, call the existing no-battle cleanup, and avoid the post-battle accounting/history callbacks.
+
+One important interaction remains to be specified in the implementation: `_games_building()` makes the scheduler select Builder Base while a Builder Base Clan Games challenge is active, independently of the normal farming mode. A simple early return inside `builder_cycle()` would leave that special route repeatedly selecting Builder Base without making progress. The implementation must define whether `builder.attack_enabled = false` also suppresses Builder Base Clan Games battles (and makes the scheduler resume ordinary village work), or whether Clan Games is an intentional exception. Do not ship a partial gate that creates a maintenance loop.
+
+
+## Tenth-pass research: three additional reference repositories
+
+Research scope: public default-branch trees, READMEs, and representative implementation files were inspected for:
+- [`Killersparrow1/clash-Trackers`](https://github.com/Killersparrow1/clash-Trackers) (Android/Kotlin village progress and event tracker)
+- [`N1xUser/NX-ClashClient`](https://github.com/N1xUser/NX-ClashClient) (Windows/Python screen automation, calibration, OCR and attack orchestration)
+- [`DFanso/coc-attack-bot`](https://github.com/DFanso/coc-attack-bot) (Python attack recording/playback and optional AI base analysis)
+
+This was a source review, not a dependency installation, execution, security audit, or live-game test.
+
+### 1. clash-Trackers — best reference for game-data and progress modelling
+
+Useful ideas:
+- A pure parsing layer separated from Android/UI code. `ExportParser.kt` validates the export root, player tag and timestamp, tolerates unknown JSON keys, and converts Home Village and Builder Base entries into typed jobs.
+- A well-separated domain model for upgrade steps, resources, timers, boost modifiers, builder/lab/pet categories, and Builder Base / Star Laboratory.
+- `RoadToMax.kt` models per-item level steps, resource costs, Town Hall limits, multiple copies, hero sequential-upgrade constraints, walls and ore costs.
+- Boosts are explicit time intervals with category applicability and stacking rules, rather than scattered timer adjustments.
+- Event data and static game data use a cache/fallback model. Downloaded data is parsed and validated before it replaces the currently working copy; bundled data remains available offline.
+- The weekly GitHub Action regenerates game data from ClashKingAssets, checks for suspicious regressions, and opens a reviewable PR only when data changes.
+- The project has a broad unit-test suite around parsing, boosts, events, multi-account import, timers and progress calculations.
+- README documents data sources, local storage, fallbacks, privacy boundaries and diagnostics unusually clearly.
+
+Limits for this project:
+- It is an Android app, not a desktop automation engine. Its Kotlin/Compose UI, Android widgets, notifications, Shizuku and Android accessibility companion are not direct fits for the current desktop-only COCFARM application.
+- Its strongest contribution is domain modelling and data-pipeline design, not attack execution.
+- The repository has an MIT license. Any direct reuse still requires retaining its copyright/license notice and checking the exact files/assets being reused.
+
+Recommendation: adopt the architectural patterns, not the Android application. If progress-planning or game-data freshness becomes a confirmed product requirement, create a Python domain layer with typed export parsing, boost intervals, validated cached game data and offline fallback. Do not add the tracker as a second app or add cloud tracking services by default.
+
+### 2. NX-ClashClient — best reference for local vision, calibration and recovery
+
+Useful ideas:
+- Relative ROI coordinates in `config/rois.json`, converted to absolute pixels from each captured frame. This is more adaptable to window-size changes than fixed absolute pixel coordinates.
+- An interactive calibration utility that lets the operator define screen regions visually and saves them to configuration. This is a strong idea for a local desktop bot with varying emulator/window dimensions.
+- Vision helpers are separated from capture and orchestration: ROI crop, image preprocessing, color masks and screen-state checks are implemented in `src/vision/detection.py`.
+- Multiple OCR engines are supported (Tesseract and optional RapidOCR), with specialized preprocessing and parsers for resource numbers, builder counts and upgrade lists.
+- The recovery module centralizes detection of known states and recovery actions instead of duplicating navigation fixes in each task.
+- The code exposes debug images and OCR previews through dedicated UI controllers, which is useful for diagnosing false detections.
+- A state-oriented adapter attempts to separate the bot orchestration layer from direct Tkinter widget access.
+
+Risks and shortcomings observed:
+- Some detection logic relies on fixed sample pixels and hand-tuned color thresholds; it can be brittle when game art, scaling, anti-aliasing or themes change.
+- Several OCR paths swallow exceptions and return fallback values such as zero or "?/?". Treating an OCR failure as a real zero can cause incorrect decisions. COCFARM should preserve confidence/unknown/error states and refuse consequential actions when readings are uncertain.
+- The state manager writes JSON directly and uses a shallow copy for returned nested state; this is not a robust persistence/concurrency pattern to copy.
+- The state wrapper reaches into UI internals and controller functions, so the separation is incomplete.
+- The capture implementation is Windows-specific. It uses PrintWindow/PostMessage and catches broad exceptions; compatibility and input delivery need explicit validation rather than assuming these calls always work.
+- The attack module contains broad automated deployment/fallback behavior. It should not be copied wholesale or treated as validated strategy.
+- No repository LICENSE file was present in the inspected default-branch tree. Do not copy code into CoC_Bot unless the author clarifies a compatible license.
+
+Recommendation: highest priority is to borrow the ROI calibration workflow, confidence-aware multi-engine OCR design, state classification, and centralized recovery *concepts*. First compare them against COCFARM's existing capture/OCR pipeline to avoid duplicating working capabilities. Do not replace COCFARM's current capture backend merely because NX uses a different Windows input method.
+
+### 3. coc-attack-bot — useful product concepts, weak implementation to reuse
+
+Potentially useful concepts:
+- User-recorded attack sessions as named, selectable profiles.
+- A separation between screen capture, coordinate mapping, recording/playback, orchestration, logging and configuration.
+- Attack-session metadata and playback history could inspire a local strategy library, if a future manual/assisted mode is explicitly wanted.
+
+Important issues:
+- `AIAnalyzer` sends screenshots to Google's Gemini API. This conflicts with the user's explicit decision not to use external AI/OCR services and must not be integrated.
+- The analyzer asks a generative model to estimate exact loot and base properties from screenshots. These are consequential numeric readings and should instead come from local OCR plus deterministic validation.
+- The non-AI loot-check path in `auto_attacker.py` currently contains a placeholder that marks each configured resource as good; it is not a real OCR implementation.
+- The attack loop uses fixed waits (including a three-minute battle wait) and assumes a successful return-home click; this is weaker than state-driven completion/recovery.
+- Recording raw mouse coordinates and replaying them can be resolution/window-layout dependent. A safer design would store normalized coordinates with a validated screen profile and require state checks before playback.
+- The loop's emergency stop and thread lifecycle need more rigorous cancellation and exception handling before they could be considered production quality.
+- No repository LICENSE file was present in the inspected default-branch tree. Do not copy code unless a compatible license is established.
+
+Recommendation: do not port its Gemini integration, placeholder loot logic, fixed-delay attack flow or raw-coordinate playback engine. Keep only the product idea of named/manual strategy profiles as a possible future feature; COCFARM's existing battle implementation remains the baseline.
+
+### Cross-repository comparison and integration decision
+
+| Area | Best reference | Decision for COCFARM |
+|---|---|---|
+| Local ROI calibration | NX-ClashClient | High-value concept; compare against existing COCFARM calibration before implementing |
+| OCR engine fallback | NX-ClashClient | Evaluate local RapidOCR/Tesseract alternatives; confidence and unknown values are mandatory |
+| State detection and recovery | NX-ClashClient | Add a centralized, testable state/recovery layer only where COCFARM has gaps |
+| Upgrade/progress domain model | clash-Trackers | Reuse modelling ideas if progress planning is added; not Android UI/code |
+| Boost/timer calculations | clash-Trackers | Strong reference for explicit intervals, stacking and deterministic tests |
+| Dynamic game-data pipeline | clash-Trackers | Good optional improvement; validate source schema and keep bundled fallback |
+| Attack strategy recording | coc-attack-bot | Product concept only; do not reuse raw coordinate playback without redesign |
+| External generative AI | coc-attack-bot | Explicitly rejected; no Gemini or remote OCR/vision service |
+| Automated deployment | NX-ClashClient / coc-attack-bot | Do not replace COCFARM's battle engine based on repository claims; require deterministic tests and controlled validation |
+
+### Updated project decisions
+
+1. COCFARM remains the sole runtime foundation; no second bot or parallel UI is being introduced.
+2. No Telegram, Web Dashboard, iPhone Shortcut, Gemini, external OCR or other remote AI service.
+3. Keep vision/OCR local. OCR must distinguish `valid value`, `unknown`, and `failed`; do not silently convert recognition failures to zero.
+4. Prioritize a comparative audit of COCFARM's existing ROI/calibration, capture, OCR and screen-state code before adding a new vision dependency.
+5. Consider tracker-style village-export parsing, boost modelling and game-data validation as separate optional modules, not blockers for the core farming loop.
+6. Respect upstream licensing. clash-Trackers is MIT; the inspected NX-ClashClient and coc-attack-bot default-branch trees did not expose a LICENSE file, so their code is reference-only pending explicit licensing clarification.
+
+### Next implementation gate
+
+Before importing or adapting any code, compare COCFARM's existing calibration/capture/OCR/recovery implementation against the NX findings and add tests around the existing interfaces. Then implement the Builder Base attack toggle only after deciding the Clan Games exception and scheduler behavior. No code from these three repositories has been copied into the project.
+
+
+### Eleventh-pass comparison: the reference vision code versus COCFARM's existing engine
+
+A direct inspection of COCFARM's `farmbot/vision.py`, `farmbot/text.py`, `farmbot/game.py`, `farmbot/screens.py`, `farmbot/device.py` and `farmbot/geometry.py` changes the integration recommendation:
+
+- COCFARM already has a substantial OpenCV template-matching engine, including multi-template directories, confidence scores, overlapping-hit suppression, coarse-to-fine matching, grayscale prefiltering, adaptive scale selection and cached half-size screenshots.
+- `farmbot/game.py` normalizes screenshots to a reference height, estimates UI scale from anchor templates, and verifies the selected scale before using it. This is more sophisticated than simply applying fixed normalized ROIs and color thresholds.
+- `farmbot/text.py` already performs local glyph-based numeric recognition: it segments bright glyphs, handles joined digits and grouping, and classifies them against locally captured templates. It is not dependent on a remote OCR API.
+- `farmbot/screens.py` already provides a centralized screen state machine covering home village, Builder Base, battle, results, popups, event chest/reward screens, Clan Capital, war, login, maintenance and unknown states. Its `settle()` routine tries to return to a known village and raises explicit errors when it cannot.
+- `farmbot/device.py` provides a device protocol and ADB-based emulator access, including timeouts and typed device errors, rather than binding the core to a single Windows window-message mechanism.
+- `farmbot/geometry.py` already supports edge-relative rectangles and scaling.
+
+Conclusion: NX-ClashClient's calibration and recovery concepts are useful references, but COCFARM's current vision, glyph reading, scale detection and screen recovery are already more deeply integrated and in several respects more advanced. Do not replace them with NX's fixed-pixel/color-ROI implementation or its PrintWindow/PostMessage backend. The best next work is to add regression tests and improve observability/confidence around COCFARM's own existing engine. A calibration wizard should only be considered if actual user testing identifies a template-capture or setup pain point that the existing `farmbot crop` workflow does not solve.
+
+The tracker and AI-bot findings remain unchanged: tracker-style export/progress/timer models are optional product extensions; Gemini and other external AI/OCR are out of scope; raw-coordinate attack playback is not a replacement for the existing state-driven engine.
+
+
+## Twelfth-pass research: additional repositories worth mining
+
+This pass searched beyond the initial three references and inspected source files, repository trees, tests, data formats and licenses. The goal remains to keep COCFARM as the only bot runtime; external projects are reference sources or optional data/integration sources, not parallel bots.
+
+### 1. PixelChief — strongest reference for automated progression
+
+Repository: https://github.com/Leixien/pixelchief (MIT license)
+
+Useful concepts observed in its README and `app/core/upgrader.py`, `upgrade_menu.py`, `upgrade_policy.py`, and `village_state.py`:
+
+- Builder-menu scan into structured rows, including in-progress, suggested and other upgrades.
+- Separate Maxer/Rusher policies, reserve-builder settings, cheapest/priciest ordering, and dark-elixir-first prioritization.
+- Explicit gold buffer so farming entry fees are not consumed.
+- Dry-run mode before allowing purchases.
+- Re-read and stabilize the selected row before clicking; verify an upgrade actually started by checking the free-builder counter afterward.
+- Refuse uncertain purchases and treat red/unaffordable costs as a hard veto against accidental gem spending.
+- Read village state across multiple frames; unreadable builder/lab values remain unknown rather than being guessed.
+- Idle when storages are full and all builders are busy, then periodically recheck for newly available work.
+
+Limitations and caution:
+- The README says the Python sources were reconstructed from released bytecode and are being repaired; expect decompilation gaps and differences from upstream.
+- Auto-upgrade and minimum-loot features are marked beta in the README; documented screen support is English and primarily 16:9/16:10.
+- It is not a drop-in replacement for COCFARM's scheduler, device layer or vision system.
+
+Recommendation: high-value design reference for a future COCFARM building-upgrade planner/executor and safe idle gate. First compare against COCFARM's own current scheduler, builder-menu detection and purchase safeguards; port only missing domain logic, not the whole bot or decompiled implementation.
+
+### 2. Clash Timers — village export parser and boost-aware timers
+
+Repository: https://github.com/memehammad/clash-timers (GPL-3.0)
+
+Inspected `VillageParser.kt`, `GameData.kt`, `Boosts.kt`, and `Scheduler.kt`.
+
+Useful concepts:
+- Parse the game's own village JSON export, keyed by player tag and timestamp.
+- Model worker slots independently: Home builders, Laboratory, Pet House, Builder Base builders and Star Laboratory.
+- Account for helper levels and active boosts when computing remaining work.
+- Model Builder Potion/Builder Bite non-stacking and Research Potion/Study Soup stacking as distinct speed intervals.
+- Preserve uncertainty: unknown or missing export values should not be treated as confirmed zero.
+- Store several villages independently and derive completion/idle-builder reminders from imported snapshots.
+- Game data is updated through a scheduled workflow rather than requiring a hardcoded list of current timers.
+
+Limitations: Android widget, notifications, Shizuku and Smartspacer are not wanted for this desktop-only project. Its Kotlin UI/platform code is not useful to transplant.
+
+Recommendation: high-value reference for a Python village-export importer, worker-slot model, boost-aware ETA calculations and timer tests. The project is GPL-3.0, compatible with the COCFARM GPL-3-or-later base, but any copied code must retain notices and GPL obligations.
+
+### 3. coc-rush-helper — most comprehensive export/upgrade-planning logic found
+
+Repository: https://github.com/mateobaricevic/coc-rush-helper
+
+Inspected `dist/engine.js`, `dist/game-data.json`, tests and README.
+
+Useful concepts:
+- Robustly accepts raw village exports and wrapper objects, arrays or named objects, with explicit size/type/field validation.
+- Handles Home Village and Builder Base data, heroes, guardians, traps, troops, spells, pets, equipment, siege machines and newer Crafting Station modules.
+- Tracks unknown IDs and data warnings instead of silently dropping unsupported entries.
+- Separates import recognition from what is eligible for permanent research (e.g. seasonal and Super Troops should not become permanent lab-upgrade goals).
+- Army-aware research planning: recommend only lab and production-building upgrades needed for a selected army.
+- Tests include malformed data, native export variations, helper timers, extra workers, Builder Base and Crafting Station modules.
+- Bundled game data records upstream source, source commit and file hashes.
+
+Important limitation: no LICENSE file was found in the inspected default-branch tree. Do not copy its source or bundled data into CoC_Bot unless licensing is clarified. Use its behavior and test cases as design references only.
+
+Recommendation: very high-value reference for the export parser's compatibility matrix, unknown-item handling, upgrade-planning edge cases and regression tests. Its browser UI is not a reason to add a Web Dashboard.
+
+### 4. clash-of-clans-data — broad structured static game data
+
+Repository: https://github.com/chiefpansancolt/clash-of-clans-data (MIT license)
+
+The project supplies typed, structured data and images for Home Village, Builder Base and Clan Capital: buildings, defenses, troops, spells, heroes, equipment, pets, traps, walls, leagues and more. It is a Node package (requires Node.js 24+), but the underlying JSON data is language-neutral.
+
+Recommendation: investigate using a pinned, validated JSON snapshot as the data source for an eventual upgrade planner, rather than making the Python bot depend on a Node runtime. Preserve MIT notices, record the upstream commit/version and add a data validation/update workflow. Do not assume its static data is always current immediately after a game patch.
+
+A related extractor, https://github.com/Xayz-X/ClashOfClans, downloads and decompresses game asset data into JSON. It is a small reverse-engineering/data-extraction project; prefer the maintained structured dataset above unless the project has a specific missing field that justifies owning an extractor.
+
+### 5. cocapi — optional official API integration
+
+Repository: https://github.com/tonybenoy/cocapi (GPL-3.0)
+
+Inspected README and project metadata. It provides sync/async official API access, caching, retries, pagination/batching, typed models, maintenance detection and event polling for clans, wars and players.
+
+Potential use: an optional clan/war/player information module or data enrichment, separate from the emulator automation loop. This is not necessary for farming, and the public API does not replace screen recognition or reveal all private village state.
+
+Credential caution: the library advertises automatic developer-portal key management from email/password. Do not enable credential-based portal automation by default. If this integration is ever selected, prefer a manually supplied official API token, store it locally with restrictive permissions, and keep API access opt-in.
+
+### 6. COC Auto Farm — calibration and worker-thread patterns
+
+Repository: https://github.com/anugrhaswi/Coc-Auto-Farm (MIT license)
+
+Inspected `docs/ARCHITECTURE.md`, `calibrate.py` and `bot.py`.
+
+Useful concepts:
+- Dedicated worker thread with a thread-safe queue so the GUI thread is never manipulated by the bot worker.
+- Stop-event-aware waits and a clean stop lifecycle.
+- Structured logs and a separate calibration workflow.
+- Retry/recovery paths distinguish a failed scan from a genuine zero-resource reading.
+
+Limitations: the project relies on fixed normalized button coordinates and YOLO/EasyOCR for moving content. COCFARM already has a more integrated ADB/device abstraction, template vision, local glyph recognition and centralized screen state machine. Do not replace COCFARM's engine with this fixed-coordinate approach.
+
+Recommendation: inspect its retry/failure classification and UI-thread communication as a secondary reference, but prioritize COCFARM's existing abstractions.
+
+### 7. Lower-value or unsuitable findings
+
+- [`jatizon/clash-of-clans-bot`](https://github.com/jatizon/clash-of-clans-bot): behavior-tree architecture is a useful general design pattern, but the inspected implementation is a small prototype with simple nodes and no evidence it improves on COCFARM's existing state machine and scheduler. Do not migrate it.
+- [`Statscell/clash-of-clans-data`](https://github.com/Statscell/clash-of-clans-data): MIT, but the inspected dataset dates from 2021 and is less suitable than the newer structured dataset above.
+- [`Somat-1/coc_bot`](https://github.com/Somat-1/coc_bot): its official-API war tracker demonstrates participation reports and historical analytics, but the repository describes itself as a personal project and no clear reusable license was established. Prefer the licensed API client if official API functionality is later required.
+- Repositories built around raw coordinate playback, brittle fixed waits, external Gemini/OCR services, or event-specific hardcoding remain out of scope.
+
+### Consolidated recommendation from this pass
+
+Prioritize future investigation/integration in this order:
+
+1. **Village Export + Upgrade Planner:** parser, normalized village model, builder/lab/pet/Builder Base timers, unknown-field reporting and upgrade goals. Use Clash Timers and coc-rush-helper as design/test references; use a licensed structured dataset such as clash-of-clans-data after validating coverage.
+2. **Safe Auto-Upgrade:** dry-run, resource buffers, reserve builders, multi-frame corroboration, hard gem-spend veto, and post-action verification. PixelChief is the strongest reference, but its decompiled source should not be treated as production-ready.
+3. **Boost-aware ETA:** model active potions/helpers/Clock Tower as time intervals, with explicit stacking rules and unit tests.
+4. **Optional official clan API module:** only if clan/war/player features are explicitly wanted; use cocapi with manual token configuration, not portal password automation.
+5. **Do not add another bot runtime, Android UI, Web Dashboard, external AI/OCR, Telegram, or iPhone Shortcut.**
+
+No third-party bot source code has been imported by this audit update. These are research findings and implementation candidates only.
+
+
+---
+
+## 13th research pass — upgrade automation, magic items, boost modelling, and newer farming bots
+
+Research date: 2026-11-28. This pass inspected repository READMEs, source files, test suites, repository trees, and license files where available. Findings are references, not imported code.
+
+### 1. RaidR — strongest new reference for safe live upgrade execution
+
+Repository: https://github.com/staticmooniq/RaidR (MIT)
+
+Inspected:
+- `app/core/upgrade_menu.py`
+- `app/core/upgrade_policy.py`
+- `app/core/upgrader.py`
+- `app/core/village_state.py`
+- `app/services/loot_ocr.py`
+- `tests/test_upgrade_reads.py`
+- `tests/test_persistence.py`
+- `CHANGELOG.md`
+
+Useful design patterns:
+- Separates the builder-menu scan (vision only) from the upgrade policy and live execution.
+- Parses rows into structured values: label, section, resource type, cost, affordability, and click point.
+- Treats unreadable resources/builders/costs as unknown; an unknown free-builder count or unparsed cost prevents a purchase.
+- Maxer and Rusher are policy variants over one engine. The policy supports reserved builders, a gold buffer for the next matchmaking fee, selectable cheapest/priciest ordering, and dark-elixir-first selection.
+- The execution pass reopens the menu and re-finds the chosen row by fuzzy label plus exact cost. It requires two consecutive frames to agree on the row position before clicking, guarding against menu scrolling animation.
+- Red unaffordable-cost regions are a hard veto around the confirm action; the execution chain is bounded rather than blindly clicking repeated buttons.
+- Verifies success by rereading the builder chip and confirming the free-builder count dropped.
+- Village HUD reads use multi-frame agreement; fields are optional/unknown rather than fabricated as zero.
+- Changelog documents atomic temp-file + rename persistence and download integrity checks for its self-updater.
+- Tests cover resource disagreement, red-cost veto, wrong-row rejection, persistence round trips and corrupt-file recovery.
+
+Limitations / adaptation:
+- Its geometry is calibrated for specific 16:9 / 16:10 layouts and should not be copied as fixed coordinates.
+- Its current implementation includes a user-facing dry mode. The COC_Bot design will NOT adopt a Dry Run mode, per the user's decision. The underlying safety checks (unknown-state veto, re-identification, bounded clicks, and post-action verification) remain desirable in live mode.
+- Its strategy and UI are not a replacement for COCFARM's runtime.
+
+Recommendation: highest-priority reference for implementing COCFARM's future live upgrade executor and tests. Recreate the concepts inside COCFARM's device, vision, screen-state, config, and scheduler abstractions; do not transplant the full application.
+
+### 2. watari09/clash-planner — strongest new reference for boost and magic-item mathematics
+
+Repository: https://github.com/watari09/clash-planner
+
+License check: no `LICENSE` file was found in the inspected default-branch tree. Treat as reference-only; do not copy its source or data unless licensing is clarified.
+
+Inspected:
+- `src/boosts.js`
+- `src/magic.js`
+- `src/planner.js`
+- `src/suggest.js`
+- `test/boosts.test.js`
+- `test/magic.test.js`
+- `test/planner.test.js`
+- `tools/update_data.py`
+- `data/game.json`
+- `README.md`
+
+Useful design patterns:
+- Pure functions for boost calculations, separated from UI and side effects.
+- Models boost types by affected work groups (Home builders, Laboratory, pets, Builder Base builders, Star Laboratory), with level-aware helper effects and level-aware Clock Tower duration.
+- Models scheduled boost events as time intervals, sorts them chronologically, accounts for overlap/stacking rules, and calculates the revised completion time and saved time.
+- Distinguishes single-target helpers from village-wide potions and handles recurring helper workdays.
+- Magic-book recommendations rank eligible upgrades by remaining time, respect Home Village and Town Hall/Laboratory eligibility, and include running upgrades using their remaining duration.
+- Upgrade planning uses separate queues for builders, Laboratory, Builder Base, Star Laboratory, and pets, plus resource-availability timelines.
+- Includes substantial unit tests for boost arithmetic, helper cooldowns, affected work groups, running upgrades, and magic-book ranking.
+- The data updater reads versioned official game-asset tables using the game fingerprint and generates normalized item/level records. The sample data identifies a game version and fingerprint.
+
+Limitations / adaptation:
+- This is primarily an export-driven browser planner, not a screen automation bot.
+- Its README also describes optional account sync via a Cloudflare Worker; this is outside the local-only COC_Bot scope.
+- No license means no source/data reuse at this stage.
+- The code's boost and magic-item rules must be independently verified against current game behavior before implementation; its model is a research lead, not an authority.
+
+Recommendation: use the domain model as a blueprint for a separate, optional Boost & Timer Engine. Keep this feature disabled until the user explicitly enables it for a relevant period/event (e.g. Hammer Jam). Keep instant magic-item use in the main automation policy as a distinct feature, with per-item eligibility and inventory-cap awareness.
+
+### 3. Coc-DeepFarm — broad CV/AI architecture, but not a runtime candidate
+
+Repository: https://github.com/Dzakiudin/coc-deepfarm (MIT)
+
+Inspected:
+- `core/bot.py`
+- `perception/vision.py`
+- `ai/brain.py`, `ai/policy_net.py`, `ai/video_learner.py` (repository tree and README architecture)
+- `tests/test_project_setup.py`
+- `CHANGELOG.md`
+
+Potentially useful:
+- Clean separation between orchestration, perception, AI, device control, services, and UI.
+- Explicit scan-failure exceptions rather than treating every failed scan as a zero-loot result.
+- Queue/thread-based GUI communication, replay logging, and local model execution.
+- Video-based learning from recorded attacks is an interesting research direction if manual strategy capture is later requested.
+
+Reasons not to migrate:
+- Heavy PyTorch/YOLO/EasyOCR dependency stack and bundled model weights add significant install/runtime weight.
+- README makes strong claims about reinforcement learning, latency and farming performance; those claims are not independently validated by the inspected code/tests.
+- Existing COCFARM already has a more suitable integrated template matcher, glyph OCR, screen-state machine, and device abstraction.
+- Dashboard, notification, and AI-learning features are not current project requirements.
+
+Recommendation: do not add its neural stack. Consider only isolated ideas such as replay metadata or a future manual attack-recording workflow, after a concrete need and test plan exist.
+
+### 4. coc-auto — useful state/recovery reference, but licensing and scope concerns
+
+Repository searched: https://github.com/samperez10/coc-auto
+
+License check: no `LICENSE` file found in the inspected default-branch tree. Reference-only.
+
+Inspected `README.md` and `bot.py`. The project describes:
+- ADB/LDPlayer automation for both villages.
+- Multi-anchor screen recognition, digit-template OCR, calibration, and unknown-screen recovery.
+- Storage-capacity reads from in-game tooltips, reward popup handling, and recovery limits.
+- Safety rule that unknown screens are not tapped and recovery stops after a configured number of unsuccessful attempts.
+
+Cautions:
+- README's installation instructions point to a different repository owner (`peenjeee/coc-auto`) than the repository inspected; verify source provenance before relying on those instructions.
+- It advertises a web dashboard, which is explicitly out of scope for COC_Bot.
+- Its default dry-run behavior is not adopted; the user has explicitly rejected a Dry Run mode.
+- Do not copy source without a clear license.
+
+Recommendation: use only as a reference for unknown-screen handling, recovery budgets, and local calibration ideas.
+
+### 5. Additional lower-priority repositories
+
+- [`Mohiuddin-Fida/Clash-of-Clans-Bot`](https://github.com/Mohiuddin-Fida/Clash-of-Clans-Bot) (MIT): basic PyAutoGUI/OpenCV image matching and broad multi-scale search. The inspected implementation uses full-screen desktop screenshots and direct PyAutoGUI clicks, has minimal state modelling, and the repository includes generated executable/build/bytecode artifacts. No clear advantage over COCFARM.
+- [`ko9ma7/clash-of-clans-farm-bot`](https://github.com/ko9ma7/clash-of-clans-farm-bot) (MIT): advertises multi-account farming and targeted building/Lab upgrade automation, but depends on narrow LDPlayer resolutions, image templates, hard-coded coordinates and manually maintained priority lists. Its README clone command points to a different owner (`ryanchandra1/clash-of-clans-farm-bot`), so verify provenance before following setup instructions. Useful only as a small reference for configuration ideas; not a migration candidate.
+- [`Kushal-Raptor-X/coc-equipment-planner`](https://github.com/Kushal-Raptor-X/coc-equipment-planner) (default branch `master`): static hero-equipment/ore planner with budget and affordability queue ideas. No `LICENSE` file found; also includes deployment, analytics and ad setup that are not needed for the local bot. Reference-only; do not copy its source or assets without a license.
+- [`jaredfiacco2/ClashOfClans_API`](https://github.com/jaredfiacco2/ClashOfClans_API): historical official API ETL pipeline built around GCP, Cloud Scheduler, BigQuery and dashboards. It does not help with private village state or screen automation and conflicts with the local-only scope. No `LICENSE` file was found. Its tracked tree contains `CloudFunction/gcp-service-account-auth-key.json`; treat this as a potential exposed credential, do not download/run/reuse it, and do not copy any secret material.
+
+### Updated project decisions from the user
+
+These decisions supersede any conflicting earlier proposals in this document:
+- **No Dry Run mode.** Do not add a simulation-only user mode or make it a required step before live automation.
+- **Auto-use instant upgrade items.** The bot should automatically use eligible instant-upgrade items according to sensible item-specific rules, especially when a limited inventory slot is full or likely to block another reward. Do not assume every magic item shares the same inventory cap or eligibility.
+- **Boost & Timer Engine remains optional.** It should be user-enabled for a relevant period/event (for example Hammer Jam), not always active by default.
+- Retain internal live-action safeguards even without Dry Run: verify the screen and target, reject unknown/unreadable values, confirm resource and item eligibility, avoid unintended gem spending, bound the click sequence, and verify the expected state change afterward.
+
+### Priority after this research pass
+
+1. Implement safe live upgrade execution within COCFARM, using RaidR's scan → policy → re-identify → execute → verify pattern, adapted to COCFARM's own architecture.
+2. Design the instant-item manager with explicit item categories, actual per-item storage limits, eligibility rules, and automatic-use policy. Verify game data before hardcoding limits.
+3. Build the optional boost/timer domain model using independently validated rules and unit tests; enable it only when the user turns it on.
+4. Continue using COCFARM's current vision/OCR and improve confidence/failure reporting rather than adding another vision stack.
+5. No source code from the repositories in this pass has been imported. This update records research and design decisions only.
+
+
+---
+
+## Repository link index — reopen research sources
+
+This index is intentionally link-heavy so each researched project can be reopened without searching chat history. Links point to canonical GitHub repositories; source-file links point to the files inspected where applicable. License status below reflects the repository files inspected during this audit, not a guarantee about third-party assets or later commits.
+
+### Core runtime and primary references
+
+| Repository | License status | Why it was researched |
+|---|---|---|
+| [BilinP/COCFARM](https://github.com/BilinP/COCFARM) | GPL family; verify exact upstream LICENSE before redistribution | Sole bot runtime and migration base |
+| [Leixien/pixelchief](https://github.com/Leixien/pixelchief) | MIT | Upgrade menu scanning, Maxer/Rusher policies, live action verification |
+| [staticmooniq/RaidR](https://github.com/staticmooniq/RaidR) | MIT | Strong live-upgrade safety and test patterns |
+| [watari09/clash-planner](https://github.com/watari09/clash-planner) | No LICENSE found | Boost timers, magic-item ranking, upgrade planning |
+| [memehammad/clash-timers](https://github.com/memehammad/clash-timers) | GPL-3.0 | Timer/boost interval modelling |
+| [mateobaricevic/coc-rush-helper](https://github.com/mateobaricevic/coc-rush-helper) | No LICENSE found | Export parser, rush planning, data validation tests |
+| [chiefpansancolt/clash-of-clans-data](https://github.com/chiefpansancolt/clash-of-clans-data) | MIT | Versioned structured game data |
+| [Xayz-X/ClashOfClans](https://github.com/Xayz-X/ClashOfClans) | No clear license established in this audit | Game asset extraction research; use only if structured data lacks a needed field |
+| [tonybenoy/cocapi](https://github.com/tonybenoy/cocapi) | GPL-3.0 | Official API client, caching/retry and typed API models |
+| [anugrhaswi/Coc-Auto-Farm](https://github.com/anugrhaswi/Coc-Auto-Farm) | MIT | Worker lifecycle, recovery, calibration and logging ideas |
+
+### Vision, attack automation, and older bot references
+
+| Repository | License status | Why it was researched |
+|---|---|---|
+| [N1xUser/NX-ClashClient](https://github.com/N1xUser/NX-ClashClient) | No license found | OCR, calibration, screenshot/state recovery reference |
+| [DFanso/coc-attack-bot](https://github.com/DFanso/coc-attack-bot) | No license found | Attack recording/playback and optional remote-AI analysis |
+| [Mohiuddin-Fida/Clash-of-Clans-Bot](https://github.com/Mohiuddin-Fida/Clash-of-Clans-Bot) | MIT | Basic PyAutoGUI/OpenCV farming automation |
+| [ko9ma7/clash-of-clans-farm-bot](https://github.com/ko9ma7/clash-of-clans-farm-bot) | MIT | LDPlayer/ADB multi-account farming and upgrade templates |
+| [Dzakiudin/coc-deepfarm](https://github.com/Dzakiudin/coc-deepfarm) | MIT | Modular CV/AI architecture and recovery patterns |
+| [samperez10/coc-auto](https://github.com/samperez10/coc-auto) | No LICENSE found | Unknown-screen handling and recovery limits |
+| [jatizon/clash-of-clans-bot](https://github.com/jatizon/clash-of-clans-bot) | No clear license established in this audit | Behavior-tree prototype |
+| [peenjeee/coc-auto](https://github.com/peenjeee/coc-auto) | License status not established in this audit | Related project name surfaced in coc-auto README; distinct repository, not assumed to be the same source |
+| [Statscell/clash-of-clans-data](https://github.com/Statscell/clash-of-clans-data) | MIT | Older game-data dataset; appears stale relative to newer data sources |
+| [Somat-1/coc_bot](https://github.com/Somat-1/coc_bot) | No clear reusable license established | Official API-based war tracking |
+
+### Data/API and specialized planning
+
+| Repository | License status | Why it was researched |
+|---|---|---|
+| [Kushal-Raptor-X/coc-equipment-planner](https://github.com/Kushal-Raptor-X/coc-equipment-planner) | No LICENSE found; default branch `master` | Hero equipment and ore-budget planner |
+| [jaredfiacco2/ClashOfClans_API](https://github.com/jaredfiacco2/ClashOfClans_API) | No LICENSE found | Historical official API + GCP ETL/reporting pipeline |
+
+### Direct source-file bookmarks
+
+- [RaidR upgrade menu parser](https://github.com/staticmooniq/RaidR/blob/main/app/core/upgrade_menu.py)
+- [RaidR upgrade policy](https://github.com/staticmooniq/RaidR/blob/main/app/core/upgrade_policy.py)
+- [RaidR upgrade executor](https://github.com/staticmooniq/RaidR/blob/main/app/core/upgrader.py)
+- [RaidR live upgrade tests](https://github.com/staticmooniq/RaidR/blob/main/tests/test_upgrade_reads.py)
+- [clash-planner boost calculations](https://github.com/watari09/clash-planner/blob/main/src/boosts.js)
+- [clash-planner magic-item logic](https://github.com/watari09/clash-planner/blob/main/src/magic.js)
+- [clash-planner boost tests](https://github.com/watari09/clash-planner/blob/main/test/boosts.test.js)
+- [Mohiuddin bot main implementation](https://github.com/Mohiuddin-Fida/Clash-of-Clans-Bot/blob/main/Bot/Bot.py)
+- [ko9ma7 farm/upgrade implementation](https://github.com/ko9ma7/clash-of-clans-farm-bot/blob/main/code/bot_farm_auto_v4.py)
+- [Equipment planner application logic](https://github.com/Kushal-Raptor-X/coc-equipment-planner/blob/master/app.js)
+- [Equipment planner data/readme](https://github.com/Kushal-Raptor-X/coc-equipment-planner/blob/master/README.md)
+- [ClashOfClans_API helper functions](https://github.com/jaredfiacco2/ClashOfClans_API/blob/main/apiHelpers.py)
+- [ClashOfClans_API example pipeline](https://github.com/jaredfiacco2/ClashOfClans_API/blob/main/main.py)
+
+Security note: the `jaredfiacco2/ClashOfClans_API` repository tree includes a file named `CloudFunction/gcp-service-account-auth-key.json`. The audit did not fetch or reproduce its contents. Treat it as potentially sensitive and never use it as a credential source. A repository owner should verify whether it contains a real key and revoke/rotate that key if it was exposed.
+
+
+## Implementation progress — 2026-11-28
+
+### Instant-upgrade magic-item policy foundation
+
+The COCFARM branch now has a pure, testable policy module at `farmbot/tasks/magic_items.py` for the five books and four hammers. It uses item-specific capacities (currently one each in the reviewed game-data snapshot), village/category applicability, and separate book-vs-hammer rules:
+- Books can only finish a positively identified, currently running matching upgrade with a readable positive remaining timer.
+- Hammers can only start a positively identified matching next-level upgrade when the relevant worker/research slot is available; they are not used on an already-running upgrade.
+- Unknown, locked, maxed, unreadable, gem-only, wrong-village, and wrong-category targets are rejected.
+- At capacity, the policy chooses by configured target priority, then longest remaining timer, with deterministic tie-breaking. Below capacity, it does nothing.
+
+This is **policy logic only**, not yet a live inventory scanner or click executor. The current COCFARM tree has no Magic Items inventory templates or confirmed navigation/target-screen captures. Do not add guessed coordinates or generic taps. The live integration still needs verified templates/screenshots, item-count recognition, target re-identification immediately before action, and post-use verification. Until those are implemented, the policy module does not consume any in-game items.
+
+Capacity/applicability reference reviewed: [chiefpansancolt/clash-of-clans-data](https://github.com/chiefpansancolt/clash-of-clans-data/tree/main/data/magic-items) (MIT; repository snapshot pushed 2026-11-06). This is a community-maintained structured data source, not a Supercell guarantee; re-check against the live game after game updates.
+
+
+The policy layer now also converts confirmed Home Village upgrade end-times from COCFARM's own village export into book-eligible targets. It maps only recognized game IDs through `farmbot/gamedata.py`; expired timers and unknown IDs are ignored. Builder Base export timers currently identify only the occupied worker slot, not the specific item, so Builder Base book targets remain unsupported until the live target screen can identify them.

@@ -35,7 +35,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -e . pyinstaller
+      - run: pip install -e .[dev] pyinstaller
+      - name: Run unit tests
+        run: python -m pytest -n 0
       - run: python packaging/build.py
       - name: Self-test the built exe
         shell: pwsh
