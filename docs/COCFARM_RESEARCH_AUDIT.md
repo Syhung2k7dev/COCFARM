@@ -989,3 +989,8 @@ Capacity/applicability reference reviewed: [chiefpansancolt/clash-of-clans-data]
 
 
 The policy layer now also converts confirmed Home Village upgrade end-times from COCFARM's own village export into book-eligible targets. It maps only recognized game IDs through `farmbot/gamedata.py`; expired timers and unknown IDs are ignored. Builder Base export timers currently identify only the occupied worker slot, not the specific item, so Builder Base book targets remain unsupported until the live target screen can identify them.
+
+
+### Build-list candidate discovery
+
+The Magic Items policy can now turn COCFARM's fully OCR-read Home Village Build list into Hammer candidates. It checks Buildings & Heroes, Army Upgrades, and Pets tabs, classifies only names already present in COCFARM's game-data maps, and marks a candidate startable only when the relevant Builder or Laboratory counter is positively read as free. The scanner requires the Build list to be visibly open, verifies each tab, and aborts the whole scan on an unreadable tab or missing screen state. It never taps an upgrade row or any paid button. Equipment and unknown OCR names are excluded. This is target discovery only; the Magic Items inventory UI and final Hammer button still need verified templates/screens.
