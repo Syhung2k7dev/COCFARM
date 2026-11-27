@@ -108,7 +108,22 @@ def choose_target(item_id: str, quantity: int, targets: list[UpgradeTarget]) -> 
                                              target.name.casefold(), target.target_id))
 
 
-def running_targets(village, now: float) -> list[UpgradeTarget]:
+
+def _fresh_export(village_data, now: float, max_age: int | None = None) -> bool:
+    """Whether the village export is recent enough for target/timer decisions."""
+    from farmbot.tasks import export
+
+    stamp = getattr(village_data, "timestamp", 0)
+    max_age = export.FRESH if max_age is None else max_age
+    return (
+        isinstance(stamp, (int, float))
+        and stamp > 0
+        and isinstance(now, (int, float))
+        and 0 <= now - stamp <= max_age
+    )
+
+
+def running_targets(village, now: float, max_export_age: int | None = None) -> list[UpgradeTarget] | None:
     """Turn the account export's confirmed Home Village timers into book targets.
 
     The export stores end timestamps by game item ID. Only IDs present in
@@ -116,8 +131,8 @@ def running_targets(village, now: float) -> list[UpgradeTarget]:
     Builder Base timers in the export are slot-only (no item identity), so
     they are deliberately not guessed here.
     """
-    if village is None:
-        return []
+    if village is None or not _fresh_export(village, now, max_export_age):
+        return None
 
     from farmbot import gamedata
 
@@ -264,16 +279,14 @@ def scan_builder_targets(game: Game, village_data,
     """
     import time
 
-    from farmbot.tasks import build_list, export
+    from farmbot.tasks import build_list
 
     if village_data is None or not build_list.list_shown(game):
         return None
-    stamp = getattr(village_data, "timestamp", 0)
     now = time.time() if now is None else now
-    max_export_age = export.FRESH if max_export_age is None else max_export_age
     # Builder Base worker slots come from the export, not live counters.
     # Never use an old or future-dated snapshot to claim a worker is free.
-    if not isinstance(stamp, (int, float)) or stamp <= 0 or not 0 <= now - stamp <= max_export_age:
+    if not _fresh_export(village_data, now, max_export_age):
         return None
     total_builders = getattr(village_data, "builder_base_builders", 0)
     if total_builders <= 0:
@@ -311,14 +324,12 @@ def scan_builder_running_targets(game: Game, village_data,
     import time
     from dataclasses import replace
 
-    from farmbot.tasks import build_list, export, row_names
+    from farmbot.tasks import build_list, row_names
 
     if village_data is None or not build_list.list_shown(game):
         return None
-    stamp = getattr(village_data, "timestamp", 0)
     now = time.time() if now is None else now
-    max_export_age = export.FRESH if max_export_age is None else max_export_age
-    if not isinstance(stamp, (int, float)) or stamp <= 0 or not 0 <= now - stamp <= max_export_age:
+    if not _fresh_export(village_data, now, max_export_age):
         return None
 
     busy_slots = getattr(village_data, "builder_finishing", {}) or {}

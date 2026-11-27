@@ -83,7 +83,7 @@ def test_running_targets_uses_only_known_home_export_timers(monkeypatch):
     monkeypatch.setattr(gamedata, "SPELLS", {4: "Lightning Spell"})
     monkeypatch.setattr(gamedata, "HEROES", {5: "Barbarian King"})
     monkeypatch.setattr(gamedata, "PETS", {6: "Unicorn"})
-    village = SimpleNamespace(finishing={
+    village = SimpleNamespace(timestamp=1_000, finishing={
         1: (1_200, 1_800), 3: (1_500,), 4: (900,), 6: (2_400,), 999: (5_000,)
     })
 
@@ -411,3 +411,23 @@ def test_builder_base_book_scan_returns_empty_only_after_both_tabs_confirmed_idl
     monkeypatch.setattr(build_list, "busy", lambda game: False)
     village = SimpleNamespace(timestamp=1_000, builder_finishing={})
     assert scan_builder_running_targets(object(), village, now=1_200) == []
+
+
+def test_home_book_targets_require_a_fresh_village_export():
+    from types import SimpleNamespace
+    from farmbot.tasks.magic_items import running_targets
+
+    stale = SimpleNamespace(timestamp=1_000, finishing={1: (2_000,)})
+    future = SimpleNamespace(timestamp=1_201, finishing={1: (2_000,)})
+    missing = SimpleNamespace(finishing={1: (2_000,)})
+    assert running_targets(stale, 1_301) is None
+    assert running_targets(future, 1_200) is None
+    assert running_targets(missing, 1_200) is None
+
+
+def test_home_book_targets_return_empty_for_a_fresh_export_with_no_active_timers():
+    from types import SimpleNamespace
+    from farmbot.tasks.magic_items import running_targets
+
+    village = SimpleNamespace(timestamp=1_000, finishing={})
+    assert running_targets(village, 1_200) == []
