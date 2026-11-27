@@ -210,6 +210,7 @@ def test_home_scan_aborts_if_any_tab_or_ocr_is_unverified(monkeypatch):
     monkeypatch.setattr(build_list, "list_shown", lambda game: True)
     monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
     monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: False)
     calls = []
 
     def names(game, lst, which):
@@ -228,6 +229,7 @@ def test_home_scan_uses_only_verified_tabs_and_slot_counters(monkeypatch):
     monkeypatch.setattr(build_list, "list_shown", lambda game: True)
     monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
     monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: False)
     monkeypatch.setattr(build_list, "upgradable_names", lambda game, lst, which: {
         "buildings": {"Archer Tower"},
         "research": {"Barbarian"},
@@ -431,3 +433,78 @@ def test_home_book_targets_return_empty_for_a_fresh_export_with_no_active_timers
 
     village = SimpleNamespace(timestamp=1_000, finishing={})
     assert running_targets(village, 1_200) == []
+
+
+def test_home_hammer_scan_excludes_the_currently_upgrading_row(monkeypatch):
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks import build_list, row_names
+    from farmbot.tasks.magic_items import scan_home_targets
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Archer Tower", 2: "Cannon"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {})
+    monkeypatch.setattr(gamedata, "TROOPS", {})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
+    monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: game.current_tab == "buildings")
+    monkeypatch.setattr(build_list, "upgradable_names", lambda game, lst, which: {
+        "buildings": {"Archer Tower", "Cannon"},
+        "research": set(),
+    }[which])
+    monkeypatch.setattr(build_list, "free_builders", lambda game: 1)
+    monkeypatch.setattr(build_list, "free_lab", lambda game: 1)
+    monkeypatch.setattr(row_names, "read", lambda game, lst, which, green=False: (
+        [(100, "Archer Tower")] if which == "buildings" else []
+    ))
+    game = type("FakeGame", (), {"current_tab": "buildings"})()
+    monkeypatch.setattr(build_list, "open_tab", lambda game, tab, lst: setattr(game, "current_tab", tab))
+
+    targets = scan_home_targets(game)
+    assert {target.name for target in targets} == {"Cannon"}
+
+
+def test_hammer_scan_aborts_when_busy_row_name_is_unknown(monkeypatch):
+    from farmbot.tasks import build_list, row_names
+    from farmbot.tasks.magic_items import _exclude_busy_row
+
+    monkeypatch.setattr(build_list, "busy", lambda game: True)
+    monkeypatch.setattr(row_names, "read", lambda *args, **kwargs: [(100, None)])
+    assert _exclude_busy_row(object(), build_list.HOME, "buildings", {"Archer Tower"}) is None
+
+
+def test_builder_hammer_scan_excludes_currently_upgrading_row(monkeypatch):
+    from types import SimpleNamespace
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks import build_list, row_names
+    from farmbot.tasks.magic_items import scan_builder_targets
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Crusher", 2: "Cannon"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {})
+    monkeypatch.setattr(gamedata, "TROOPS", {})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda game, tab, lst: setattr(game, "current_tab", tab))
+    monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: game.current_tab == "buildings")
+    monkeypatch.setattr(build_list, "upgradable_names", lambda game, lst, which: {
+        "buildings": {"Crusher", "Cannon"},
+        "research": set(),
+    }[which])
+    monkeypatch.setattr(build_list, "free_builders", lambda game: 1)
+    monkeypatch.setattr(build_list, "free_lab", lambda game: 1)
+    monkeypatch.setattr(row_names, "read", lambda game, lst, which, green=False: (
+        [(100, "Crusher")] if which == "buildings" else []
+    ))
+    village = SimpleNamespace(
+        timestamp=1_000,
+        builder_base_builders=2,
+        builder_finishing={"builders": (1_100,), "lab": ()},
+    )
+    game = SimpleNamespace(current_tab="buildings")
+    targets = scan_builder_targets(game, village, now=1_200)
+    assert {target.name for target in targets} == {"Cannon"}

@@ -235,6 +235,32 @@ def targets_from_names(village: Village, names_by_tab: dict[str, set[str]],
     return sorted(found.values(), key=lambda target: (target.category, target.name.casefold()))
 
 
+
+def _exclude_busy_row(game: Game, lst, which: str, names: set[str]) -> set[str] | None:
+    """Remove the first in-progress row from names read for Hammer candidates.
+
+    Build-list OCR includes every visible name, including the row already
+    upgrading. A Hammer cannot be used on that row. If its name cannot be
+    positively read, the whole tab is unknown rather than treating it as idle.
+    """
+    from farmbot.tasks import build_list, row_names
+
+    if not build_list.busy(game):
+        return names
+    lines = row_names.read(game, lst, which)
+    if lines is None:
+        return None
+    lines = sorted(lines, key=lambda line: line[0])
+    if not lines or lines[0][1] is None:
+        lines = row_names.read(game, lst, which, green=True)
+        if lines is None:
+            return None
+        lines = sorted(lines, key=lambda line: line[0])
+    if not lines or lines[0][1] is None or lines[0][1] not in names:
+        return None
+    return names - {lines[0][1]}
+
+
 def scan_home_targets(game: Game, priorities: dict[str, int] | None = None) -> list[UpgradeTarget] | None:
     """Read Home Village Hammer candidates from an already-open Build list.
 
@@ -254,6 +280,9 @@ def scan_home_targets(game: Game, priorities: dict[str, int] | None = None) -> l
         if build_list.tab_open(game, tab, build_list.HOME) is not True:
             return None
         names = build_list.upgradable_names(game, build_list.HOME, which)
+        if names is None:
+            return None
+        names = _exclude_busy_row(game, build_list.HOME, which, names)
         if names is None:
             return None
         names_by_tab[tab] = names
@@ -298,6 +327,9 @@ def scan_builder_targets(game: Game, village_data,
         if build_list.tab_open(game, tab, build_list.BUILDER) is not True:
             return None
         names = build_list.upgradable_names(game, build_list.BUILDER, which)
+        if names is None:
+            return None
+        names = _exclude_busy_row(game, build_list.BUILDER, which, names)
         if names is None:
             return None
         names_by_tab[tab] = names
