@@ -519,3 +519,28 @@ def test_inventory_planner_never_targets_unverified_squads():
         {"book-of-fighting": 1, "book-of-everything": 1},
         [squad],
     ) == []
+
+def test_book_of_everything_is_reserved_from_categories_with_owned_specific_books():
+    from farmbot.tasks.magic_items import plan_inventory_uses
+
+    first_building = target("building-1", "Archer Tower", running=True, remaining_seconds=3600)
+    second_building = target("building-2", "Cannon", running=True, remaining_seconds=1800)
+    troop = target("troop", "Barbarian", category="troops", running=True, remaining_seconds=1200)
+    plans = plan_inventory_uses(
+        {"book-of-building": 1, "book-of-everything": 1},
+        [first_building, second_building, troop],
+    )
+    assert {(item.item_id, item.target_id) for item in plans} == {
+        ("book-of-building", "building-1"),
+        ("book-of-everything", "troop"),
+    }
+
+
+def test_book_of_everything_can_target_category_when_specific_book_not_owned():
+    from farmbot.tasks.magic_items import plan_inventory_uses
+
+    building = target("building", "Archer Tower", running=True, remaining_seconds=3600)
+    plans = plan_inventory_uses({"book-of-everything": 1}, [building])
+    assert [(item.item_id, item.target_id) for item in plans] == [
+        ("book-of-everything", "building")
+    ]

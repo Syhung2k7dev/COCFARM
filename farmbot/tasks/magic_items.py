@@ -404,6 +404,20 @@ def plan_inventory_uses(
 
     planned: list[MagicItemUsePlan] = []
     assigned_targets: set[str] = set()
+    # The game reserves a target category for a specialized book whenever
+    # that book is held. Book of Everything must not be planned for another
+    # building, troop, spell, hero, or pet merely because the specialized
+    # book was already assigned to a different target of the same category.
+    specialized_book_categories = {
+        category
+        for item in ITEMS.values()
+        if item.kind == "book"
+        and item.item_id != "book-of-everything"
+        and isinstance(inventory_counts.get(item.item_id), int)
+        and not isinstance(inventory_counts.get(item.item_id), bool)
+        and inventory_counts[item.item_id] > 0
+        for category in item.applies_to
+    }
     for item in sorted(ITEMS.values(), key=order):
         count = inventory_counts.get(item.item_id)
         if not isinstance(count, int) or isinstance(count, bool) or count <= 0:
@@ -411,6 +425,10 @@ def plan_inventory_uses(
         available_targets = [
             target for target in targets
             if target.target_id not in assigned_targets
+            and not (
+                item.item_id == "book-of-everything"
+                and target.category in specialized_book_categories
+            )
         ]
         chosen = choose_target(item.item_id, count, available_targets)
         if chosen is None:
