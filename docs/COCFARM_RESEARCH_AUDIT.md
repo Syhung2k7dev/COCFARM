@@ -1111,3 +1111,56 @@ Compared the upstream `0.19.1` data schema and representative Home Village, Buil
 - [Upstream crafted Air Bombs record](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/crafted-defenses/air-bombs.json)
 
 No COCFARM runtime code or game data was changed in this comparison pass. The audit was updated only.
+
+
+## Feature coverage correction — Helpers, Guardians and Crafted Defenses (2026-11-28)
+
+A deeper source review corrects the earlier broad statement that Helpers were missing. COCFARM already has substantial Builder's Apprentice and Lab Assistant support; the remaining gaps are narrower and should not be implemented by duplicating existing code.
+
+### Helpers — existing support and precise gap
+
+- `farmbot/townhall.py` parses the export's `helpers` array, stores helper ID -> (level, cooldown), tracks `helper_recurrent` assignments, and calculates recurrent helper-adjusted completion times.
+- It defines Builder's Apprentice `93000000`, Lab Assistant `93000001`, the helper-to-upgrade-list mapping and a 23-hour cycle.
+- `farmbot/tasks/helpers.py` contains template-backed UI assignment for both Builder's Apprentice and Lab Assistant. `farmbot/tasks/upgrade.py` calls this after relevant upgrades when enabled/configured.
+- The upstream dataset confirms both records and also includes Builder's Apprentice level data (8 levels) and Lab Assistant level data (12 levels). It additionally lists Prospector `93000002`, and Alchemist (no `dataId` field in the reviewed record).
+- COCFARM currently does not model Prospector as a parsed helper or as a separate resource-conversion feature. Do not add Prospector to the existing upgrade-assignment flow: it has a different function (ore conversion) and needs its own UI/eligibility/cost model. Alchemist likewise needs its own feature analysis; it is not a Builder's Apprentice/Lab Assistant analogue.
+
+### Guardians — Shrine recognized, Guardian entities not mapped
+
+- `farmbot/gamedata.py` knows the Home Village Guardian Shrine building ID `1000105`, but has no separate guardian ID/name map.
+- Upstream records identify Longshot `107000000`, Smasher `107000001`, and Logger `107000008`; each is a guardian entity with levels, TH18 requirement and stats/cost/time data.
+- `farmbot/townhall.py`'s generic building parser only reads the export's `buildings` array and its timer list does not include a `guardians` array. `farmbot/tasks/row_names.py` also does not list Guardian Shrine in its pickable building categories, and the current upgrader has no Guardian upgrade category.
+- This does not yet prove how the live game exposes guardian level changes or whether guardian data is represented in the export under a separate list. Do not treat a Guardian Shrine building row as a guardian upgrade, and do not add guardian IDs to `BUILDINGS`: those are different entity classes. First capture a real current export and Guardian Shrine/guardian management screens, then define a dedicated schema and executor if the game exposes actionable upgrades.
+
+### Crafted Defenses — a distinct multi-module system, not ordinary building levels
+
+- The upstream dataset has a `crafted-defenses` family. A reviewed example such as Hero Hunter `103000012` stores several independent modules (Hitpoints `102000036`, Damage `102000037`, Poison Level `102000038`), each with its own 1–10 upgrade sequence, cost resource and build time. Other examples (Hook Tower, Light Beam, Bomb Hive, Crusher Mortar) also expose multiple modules, sometimes without a top-level `dataId`.
+- COCFARM knows the Crafting Station building `1000097`, but its `row_names.py` pickable building list includes Crafting Station only; there is no crafted-defense/module category in the village parser, Build List planner, `gamedata.py`, or magic-item target model.
+- This is not safely representable as one ordinary `BUILDINGS[id] = name` entry. Each defense has a collection of independently upgradeable modules, and module IDs are not interchangeable with the parent defense ID.
+- The correct next step is to establish the live game's export/UI representation and whether modules appear in the normal Build list, a separate Crafting Station view, or both. Then design explicit `CraftedDefense` / `CraftedModule` records and a separate UI task. Until observed, do not add guessed module IDs or allow magic hammers to target these modules.
+
+### Revised implementation priority
+
+1. Preserve the existing Apprentice/Lab Assistant implementation; add regression tests only if a concrete bug is found.
+2. Treat Prospector and Alchemist as separate possible helper-economy features, not upgrade helpers.
+3. Investigate Guardian Shrine and Crafted Defense screens/exports using a current user-provided game export and screenshots before implementing automation.
+4. Keep all unrecognized or unsupported guardian/module targets non-actionable. The static upstream dataset is a reference, not proof of live account state or a safe tap target.
+
+### Additional source bookmarks
+
+- [COCFARM village export parser and helper model](https://github.com/Syhung2k7dev/COCFARM/blob/main/farmbot/townhall.py)
+- [COCFARM Helper UI automation](https://github.com/Syhung2k7dev/COCFARM/blob/main/farmbot/tasks/helpers.py)
+- [COCFARM upgrade orchestration](https://github.com/Syhung2k7dev/COCFARM/blob/main/farmbot/tasks/upgrade.py)
+- [COCFARM Build-list name recognition](https://github.com/Syhung2k7dev/COCFARM/blob/main/farmbot/tasks/row_names.py)
+- [Upstream Longshot guardian](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/guardians/longshot.json)
+- [Upstream Smasher guardian](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/guardians/smasher.json)
+- [Upstream Logger guardian](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/guardians/logger.json)
+- [Upstream Builder's Apprentice](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/other/helpers/builders-apprentice.json)
+- [Upstream Lab Assistant](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/data/home/other/helpers/lab-assistant.json)
+- [Upstream Prospector](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/other/helpers/prospector.json)
+- [Upstream Alchemist](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/data/home/other/helpers/alchemist.json)
+- [Upstream Hero Hunter crafted defense](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/data/home/crafted-defenses/hero-hunter.json)
+- [Upstream Hook Tower crafted defense](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/data/home/crafted-defenses/hook-tower.json)
+- [Upstream crafted defense catalogue](https://github.com/chiefpansancancolt/clash-of-clans-data/tree/main/data/home/crafted-defenses)
+
+No runtime code was changed in this feature-coverage review. The audit records the confirmed boundaries and the evidence still needed before adding automation.
