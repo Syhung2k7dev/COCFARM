@@ -971,3 +971,18 @@ This index is intentionally link-heavy so each researched project can be reopene
 - [ClashOfClans_API example pipeline](https://github.com/jaredfiacco2/ClashOfClans_API/blob/main/main.py)
 
 Security note: the `jaredfiacco2/ClashOfClans_API` repository tree includes a file named `CloudFunction/gcp-service-account-auth-key.json`. The audit did not fetch or reproduce its contents. Treat it as potentially sensitive and never use it as a credential source. A repository owner should verify whether it contains a real key and revoke/rotate that key if it was exposed.
+
+
+## Implementation progress — 2026-11-28
+
+### Instant-upgrade magic-item policy foundation
+
+The COCFARM branch now has a pure, testable policy module at `farmbot/tasks/magic_items.py` for the five books and four hammers. It uses item-specific capacities (currently one each in the reviewed game-data snapshot), village/category applicability, and separate book-vs-hammer rules:
+- Books can only finish a positively identified, currently running matching upgrade with a readable positive remaining timer.
+- Hammers can only start a positively identified matching next-level upgrade when the relevant worker/research slot is available; they are not used on an already-running upgrade.
+- Unknown, locked, maxed, unreadable, gem-only, wrong-village, and wrong-category targets are rejected.
+- At capacity, the policy chooses by configured target priority, then longest remaining timer, with deterministic tie-breaking. Below capacity, it does nothing.
+
+This is **policy logic only**, not yet a live inventory scanner or click executor. The current COCFARM tree has no Magic Items inventory templates or confirmed navigation/target-screen captures. Do not add guessed coordinates or generic taps. The live integration still needs verified templates/screenshots, item-count recognition, target re-identification immediately before action, and post-use verification. Until those are implemented, the policy module does not consume any in-game items.
+
+Capacity/applicability reference reviewed: [chiefpansancolt/clash-of-clans-data](https://github.com/chiefpansancolt/clash-of-clans-data/tree/main/data/magic-items) (MIT; repository snapshot pushed 2026-11-06). This is a community-maintained structured data source, not a Supercell guarantee; re-check against the live game after game updates.
