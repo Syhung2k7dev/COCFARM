@@ -1345,3 +1345,32 @@ Use the CoC_Bot screenshots as visual/reference material only. If a control is g
 3. **Compare upgrade HUD/name recognition** between `src/upgrader.py` and `farmbot/tasks/build_list.py` / `farmbot/tasks/row_names.py`. Any improvement must preserve COCFARM's Build List filters, resource checks and no-gem-spend rule.
 4. **Consider only the missing configuration semantics** (independent Home/Builder attack toggles, troop slot range, optional exclusion of donated troops, and priority disable) if they remain useful after reviewing COCFARM's current GUI/config wiring. Do not import CoC_Bot's remote web service, Telegram, iPhone Shortcut or Groq OCR path.
 5. No CoC_Bot source or binary asset was copied into COCFARM in this audit. This is a comparative research record, not an implementation or runtime validation claim.
+
+
+### Detailed comparison: troop bar, battle execution and upgrade selection
+
+Inspected `CoC_Bot/src/attacker.py`, `CoC_Bot/src/upgrader.py`, and the corresponding COCFARM modules `farmbot/armybar.py`, `farmbot/tasks/attack.py`, `farmbot/tasks/build_list.py`, `farmbot/tasks/upgrade.py`, and `farmbot/tasks/row_names.py`.
+
+#### Troop-bar detection: retain COCFARM
+
+CoC_Bot's `detect_troop_positions` uses a Sobel vertical-edge profile, discretizes three expected gap widths, then classifies cards using an "x" glyph, a blue-pixel share and whether a type gap has already appeared. This is a useful compact baseline, but it is tied to hard-coded normalized gap sizes and contains fragile assumptions: the profile normalization divides by its range without a constant-profile guard; the edge-trimming loops assume at least one detected card-width interval; and the card loop assumes enough valid edges remain to pair. Its count read is also limited to rendered digits 0–11 and its classification depends on card order/type gaps.
+
+COCFARM's `armybar.py` instead uses configurable edge thresholds and card widths, checks frame colours on both sides, rejects empty slots, fills a missed card edge only when a card-sized gap and frame evidence support it, and classifies troop/spell/single/siege from header and background colour. It separately tracks spent cards, card artwork, pets, equipment and hero health. This is broader and has more explicit failure handling. No troop-bar code should be copied over from CoC_Bot. The only follow-up worth considering is a screenshot-backed benchmark of its Sobel edge profile as an optional diagnostic when COCFARM's configurable edge detector misses a card; no production change is justified without the same captured frames and regression cases.
+
+#### Battle execution: CoC_Bot is not a safer replacement
+
+CoC_Bot deploys troops at a fixed point, uses a timed hold for ordinary troops, random points for spells, and may restart/stop Clash of Clans to complete a battle. Its code does not provide the same battlefield-aware red-line/building-ring deployment, deploy-point refusal recovery, loot-aware placement, verified landing/count tracking, hero health/ability handling, and battle stopping logic present in COCFARM's `farmbot/tasks/attack.py` and its supporting modules. Do not port the fixed deployment or application-restart strategy into COCFARM.
+
+#### Upgrade selection: retain COCFARM
+
+CoC_Bot's `home_random_upgrade` searches a suggested-upgrades panel and chooses a random valid row, with a few exclusions and a special Town Hall fallback. Its `_get_upgrade_name` renders candidate labels and selects the highest template score; the surrounding routine is designed around a fixed 1920×1080 window and its own UI assumptions.
+
+COCFARM's Build List path is more systematic: it filters by resource and upgrade type, sorts by cost, waits for menus and lists to settle, tracks builders/laboratory availability, associates rows with OCR-read names, applies explicit selected-only filters, checks budgets, and protects against unintended gem spending. CoC_Bot's name-template matching is an alternative technique, but it is not demonstrably more accurate than COCFARM's local OCR + known-name matching. Do not replace `build_list.py`, `upgrade.py` or `row_names.py` with it.
+
+#### Final port decision
+
+- **No code port from CoC_Bot is justified by this comparison.** COCFARM already has the stronger implementations in the two most important overlapping paths.
+- Keep CoC_Bot's Sobel-profile troop detector as a research reference only; test it against COCFARM's detector on the same real screenshots before considering a diagnostic or fallback.
+- Keep the asset loader as a small architectural reference, not a replacement for COCFARM's live template library and Pictures workflow.
+- No attack, upgrade, device-control, or OCR code was copied. No gameplay asset was copied.
+- This was a source comparison, not an emulator test. Neither detector's accuracy was measured on a shared screenshot corpus in this session.
