@@ -477,3 +477,40 @@ def test_open_inventory_fails_closed_without_templates_or_verified_title():
     already_open = FakeGame(title_visible=True)
     assert open_inventory(already_open) is True
     assert already_open.taps == []
+
+
+def test_plan_uses_reserves_each_upgrade_target_once():
+    from farmbot.tasks.magic_items import plan_uses
+
+    targets = [
+        target("building-1", "Archer Tower", running=True, remaining_seconds=900),
+        target("building-2", "Cannon", running=True, remaining_seconds=600),
+    ]
+    planned = plan_uses({"book-of-building": 1, "book-of-everything": 1}, targets)
+    assert [(item_id, chosen.target_id) for item_id, chosen in planned] == [
+        ("book-of-building", "building-1"),
+        ("book-of-everything", "building-2"),
+    ]
+
+
+def test_plan_uses_ignores_unknown_and_unreadable_inventory_quantities():
+    from farmbot.tasks.magic_items import plan_uses
+
+    running = target("lab", "Lightning Spell", category="spells", running=True, remaining_seconds=300)
+    planned = plan_uses({"future-book": 99, "book-of-spells": None, "book-of-everything": -1}, [running])
+    assert planned == []
+
+
+def test_plan_uses_preserves_universal_item_for_other_category():
+    from farmbot.tasks.magic_items import plan_uses
+
+    targets = [
+        target("building", "Archer Tower", running=True, remaining_seconds=600),
+        target("troop", "Barbarian", category="troops", running=True, remaining_seconds=300),
+    ]
+    planned = plan_uses({"book-of-building": 1, "book-of-everything": 1}, targets)
+    assert [(item_id, chosen.target_id) for item_id, chosen in planned] == [
+        ("book-of-building", "building"),
+        ("book-of-everything", "troop"),
+    ]
+
