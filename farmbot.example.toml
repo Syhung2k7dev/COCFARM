@@ -197,3 +197,8 @@ wake_up = false  # every builder busy: close COCFARM, Windows opens it when the 
 # attacking, close the game until the soonest upgrade is done, then carry on.
 # COCFARM stays open (any emulator or phone); needs bot.read_village.
 pause_when_idle = false
+
+[builder]
+# Off: skip Builder Base battles (including Clan Games battles), but keep collecting,
+# the Clock Tower's free boost, upgrades and walls running.
+attack_enabled = true

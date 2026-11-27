@@ -27,7 +27,7 @@ looks after your village, in **both the home village and the builder base**.
 - 🎯 **Deploys right at the red line.** Troops land just outside the red line, or just outside the buildings where it can't be seen, not out at the map's edge.
 - 🏰 **Fits your Town Hall.** The loot a base must have follows suggested amounts for your Town Hall, rising as it goes up (see them all in a table, or type your own). What you haven't unlocked yet is greyed out, and your village (from the game's Data Export) is a click away.
 - 📦 **Knows when to stop.** A battle ends early once your storages are full, and the loot cart is left alone while they are.
-- 🛠️ **Farms the builder base.** It plays both stages of builder battles with your hero and troops (an all **Night Witch** army works best), fires the hero's ability when it's charged, and uses the **Clock Tower**'s free boost.
+- 🛠️ **Looks after the builder base.** It can play both stages of builder battles with your hero and troops (an all **Night Witch** army works best), or turn Builder Base attacks off while keeping collection, the **Clock Tower**'s free boost, upgrades and walls running.
 - 🔄 **Switches between villages for you.** With **Auto switch** on, it farms one village until its storages are full, then moves to the other.
 - 🏰 **Raids the Clan Capital (beta).** On Raid Weekends it uses every raid attack with the capital army you set in the game. Super Miners get Healing spells just ahead of where they're digging, and Lightning goes on the defences in their way.
 

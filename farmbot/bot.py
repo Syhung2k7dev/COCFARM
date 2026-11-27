@@ -1319,6 +1319,8 @@ class Bot:
         """A Clan Games Builder Base challenge going: builder base battles
         are fought for it (whatever the mode), until the board is due a look."""
         cfg = self.config.clan_games
+        if not self.config.builder.attack_enabled:
+            return False  # the Builder Base attack toggle also disables Clan Games battles
         if not (cfg.enabled and self._games_going and self._games_going[1] == "builder"):
             return False
         if self._no_boat or "builder_base" in self.locked():
@@ -2115,6 +2117,11 @@ class Bot:
         # (A Clan Games Builder Base challenge going: its battles are fought, full or not.)
         if may_leave and not self._games_building() and set(wanted) <= self.full_storages("builder"):
             self._village_full("builder")
+            return False
+        if not bcfg.attack_enabled:
+            self._no_battle()
+            log.info("Builder Base attacks are off; maintenance, collecting, upgrades and walls remain enabled")
+            self.status("Builder base maintenance (attacks off)")
             return False
         self.checkpoint()
         if not self._left_selected:  # (a pinch finger on what's selected would move it)

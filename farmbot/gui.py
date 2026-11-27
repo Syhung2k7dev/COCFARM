@@ -5489,6 +5489,9 @@ class FarmbotWindow(FluentWindow):
         self.depends("builder.troop_abilities", "builder.ability_delay", "builder.ability_batch")
 
         battle = page.add(SettingCardGroup("Battle"))
+        self.switch(battle, "builder.attack_enabled", Glyph.SWORDS, "Attack the Builder Base",
+                    "Off: skips Builder Base battles, including Clan Games battles. Collecting, the Clock Tower's "
+                    "free boost, upgrades and walls still run.")
         self.switch(battle, "builder.speed_up", Glyph.FAST, "Play at 4x speed",
                     "Presses the 1x button whenever it shows.")
         self.switch(battle, "builder.return_home_after", FIF.AIRPLANE, "Sail home when the bot stops",
@@ -5498,6 +5501,11 @@ class FarmbotWindow(FluentWindow):
         self.number(battle, "builder.stage_delay", FIF.STOP_WATCH, "Wait before the second base",
                     "Seconds after the first base falls, while the second loads.", "s")
         self.depends("builder.second_base", "builder.stage_delay")
+        self.depends("builder.attack_enabled", "builder.corner", "builder.use_hero", "builder.first_hero",
+                     "builder.switch_hero", "builder.switch_below", "builder.troop_delay", "builder.troop_speed",
+                     "builder.hero_ability", "builder.hero_ability_after", "builder.troop_abilities",
+                     "builder.ability_batch", "builder.ability_delay", "builder.speed_up", "builder.second_base",
+                     "builder.stage_delay")
 
     def _builder_village_tab(self, page: Page) -> None:
         loot = page.add(SettingCardGroup("Collecting"))
