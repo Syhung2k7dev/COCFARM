@@ -371,3 +371,50 @@ def open_inventory(game: Game) -> bool:
     game.wait(1.2, exact=True)
     game.refresh()
     return game.find(T.MAGIC_ITEMS_TITLE) is not None
+
+@dataclass(frozen=True)
+class MagicItemUsePlan:
+    """One proposed item/target pair; planning never mutates inventory or acts."""
+
+    item_id: str
+    target_id: str
+    target_name: str
+
+
+def plan_inventory_uses(
+    inventory_counts: dict[str, int | None],
+    targets: list[UpgradeTarget],
+) -> list[MagicItemUsePlan]:
+    """Plan at most one use of each positively-counted known item.
+
+    Missing/unknown counts are not treated as zero or as available. Specific
+    books are considered before Book of Everything so the universal book is
+    preserved whenever a narrower book can finish the same eligible target.
+    Hammers are evaluated only against non-running, positively startable
+    targets through choose_target(). Each target is assigned at most once.
+    The input inventory and target records are never mutated.
+    """
+    # Stable specificity order: narrow books first, then universal book.
+    # Hammers are kept in their own category; their target constraints are
+    # disjoint from books (running vs. startable), so order cannot bypass them.
+    def order(item: MagicItemSpec) -> tuple[int, int, str]:
+        if item.kind == "book":
+            return (0, len(item.applies_to), item.item_id)
+        return (1, len(item.applies_to), item.item_id)
+
+    planned: list[MagicItemUsePlan] = []
+    assigned_targets: set[str] = set()
+    for item in sorted(ITEMS.values(), key=order):
+        count = inventory_counts.get(item.item_id)
+        if not isinstance(count, int) or isinstance(count, bool) or count <= 0:
+            continue
+        available_targets = [
+            target for target in targets
+            if target.target_id not in assigned_targets
+        ]
+        chosen = choose_target(item.item_id, count, available_targets)
+        if chosen is None:
+            continue
+        planned.append(MagicItemUsePlan(item.item_id, chosen.target_id, chosen.name))
+        assigned_targets.add(chosen.target_id)
+    return planned

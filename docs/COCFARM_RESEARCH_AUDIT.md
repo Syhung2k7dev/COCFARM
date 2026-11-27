@@ -1260,3 +1260,25 @@ References:
 - [Supercell Support — Magic Items & The Trader](https://support.supercell.com/clash-of-clans/en/articles/magic-items-and-the-trader.html)
 
 Regression tests cover all 12 IDs, both Book and Hammer target-discovery paths, and continued eligibility of an ordinary troop. Tests are added but have not been executed in this GitHub-only session.
+
+## Inventory-aware Magic Item planning foundation (2026-11-28)
+
+Added a pure planner in `farmbot/tasks/magic_items.py`:
+
+- It accepts inventory counts only from a future positively verified inventory reader; missing, unknown, boolean, zero, and negative counts are not treated as available.
+- It produces proposed item/target pairs only. It does not tap, consume, decrement inventory, or claim that the game state changed.
+- Specific books are evaluated before Book of Everything, preserving the universal book when a narrower book can serve the same target.
+- Each target can appear at most once in a planning pass. Book and Hammer rules continue to be enforced by the existing `choose_target` policy (Books require a running timer; Hammers require a non-running target and a positively free slot).
+- Squad IDs remain excluded by the existing target-discovery guard.
+
+Regression tests were added for missing/zero counts, specific-book preference, duplicate prevention, book/hammer separation, and unverified Squad exclusion. They have not been executed in this GitHub-only editing session.
+
+### Remaining work before live Magic Item use
+
+1. Add emulator-captured inventory item and count templates; the existing Magic Items button/title templates are absent from the repository and must be captured from the user's current game UI.
+2. Implement a reader that returns a complete, confidence-checked inventory snapshot. A partially read inventory must abort planning.
+3. Add item selection and target confirmation only after the UI reveals the exact eligible target. Revalidate target identity and inventory count immediately before confirming.
+4. Verify the item count decreased and the target timer/level changed after use. On ambiguous post-state, stop and do not retry.
+5. Connect the executor to the bot loop behind the agreed automatic-use policy, without reusing the broad Snack Box “use all” routine.
+
+No asset or live device action was fabricated in this change.

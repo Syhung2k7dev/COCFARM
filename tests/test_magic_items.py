@@ -454,3 +454,68 @@ def test_regular_troops_remain_magic_item_targets_when_squads_are_excluded(monke
         "home", {"army": {"Barbarian", "Barch Squad"}}, free_lab=1
     )
     assert [target.name for target in targets] == ["Barbarian"]
+
+
+def test_inventory_planner_skips_missing_zero_negative_and_unknown_counts():
+    from farmbot.tasks.magic_items import plan_inventory_uses
+
+    running = target(running=True, remaining_seconds=3600)
+    counts = {
+        "book-of-building": 0,
+        "book-of-everything": None,
+        "book-of-fighting": -1,
+        "future-item": 99,
+    }
+    assert plan_inventory_uses(counts, [running]) == []
+
+
+def test_inventory_planner_prefers_specific_book_over_book_of_everything():
+    from farmbot.tasks.magic_items import plan_inventory_uses
+
+    building = target("building", "Archer Tower", running=True, remaining_seconds=3600)
+    troop = target("troop", "Barbarian", category="troops", running=True, remaining_seconds=1800)
+    plans = plan_inventory_uses(
+        {"book-of-building": 1, "book-of-everything": 1},
+        [building, troop],
+    )
+    assert [(item.item_id, item.target_id) for item in plans] == [
+        ("book-of-building", "building"),
+        ("book-of-everything", "troop"),
+    ]
+
+
+def test_inventory_planner_does_not_assign_one_target_twice():
+    from farmbot.tasks.magic_items import plan_inventory_uses
+
+    building = target("building", "Archer Tower", running=True, remaining_seconds=3600)
+    plans = plan_inventory_uses(
+        {"book-of-building": 1, "book-of-everything": 1},
+        [building],
+    )
+    assert len(plans) == 1
+    assert plans[0].item_id == "book-of-building"
+
+
+def test_inventory_planner_keeps_book_and_hammer_target_rules_separate():
+    from farmbot.tasks.magic_items import plan_inventory_uses
+
+    running = target("running", "Archer Tower", running=True, remaining_seconds=3600)
+    idle = target("idle", "Cannon", can_start=True)
+    plans = plan_inventory_uses(
+        {"book-of-building": 1, "hammer-of-building": 1},
+        [running, idle],
+    )
+    assert {(item.item_id, item.target_id) for item in plans} == {
+        ("book-of-building", "running"),
+        ("hammer-of-building", "idle"),
+    }
+
+
+def test_inventory_planner_never_targets_unverified_squads():
+    from farmbot.tasks.magic_items import plan_inventory_uses
+
+    squad = target("squad", "Barch Squad", category="troops", running=True, remaining_seconds=3600)
+    assert plan_inventory_uses(
+        {"book-of-fighting": 1, "book-of-everything": 1},
+        [squad],
+    ) == []
