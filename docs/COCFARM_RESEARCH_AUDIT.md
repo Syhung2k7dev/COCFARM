@@ -1374,3 +1374,8 @@ COCFARM's Build List path is more systematic: it filters by resource and upgrade
 - Keep the asset loader as a small architectural reference, not a replacement for COCFARM's live template library and Pictures workflow.
 - No attack, upgrade, device-control, or OCR code was copied. No gameplay asset was copied.
 - This was a source comparison, not an emulator test. Neither detector's accuracy was measured on a shared screenshot corpus in this session.
+
+
+### Magic Items planner input hardening
+
+A runtime inventory quantity is not trusted solely because the function is annotated with `int`: Python treats booleans as integers, and a decimal value can compare as if it meets capacity. `choose_target()` now rejects booleans, floats, strings, null and negative quantities before selecting any target. Added regression tests for malformed quantities and the valid exact-capacity case. This is a fail-closed policy-layer improvement only; it does not add inventory OCR, item selection, tapping, or consumption. Tests were added but not executed in this GitHub-only session.

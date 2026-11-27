@@ -544,3 +544,15 @@ def test_book_of_everything_can_target_category_when_specific_book_not_owned():
     assert [(item.item_id, item.target_id) for item in plans] == [
         ("book-of-everything", "building")
     ]
+
+
+
+def test_invalid_inventory_quantities_fail_closed():
+    running = target(running=True, remaining_seconds=3600)
+    for quantity in (True, False, 1.0, 1.5, "1", None, -1):
+        assert choose_target("book-of-building", quantity, [running]) is None
+
+
+def test_exact_integer_capacity_is_accepted():
+    running = target(running=True, remaining_seconds=3600)
+    assert choose_target("book-of-building", 1, [running]) == running

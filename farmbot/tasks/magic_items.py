@@ -92,7 +92,11 @@ def choose_target(item_id: str, quantity: int, targets: list[UpgradeTarget]) -> 
     name/id provide deterministic tie-breaking.
     """
     item = ITEMS.get(item_id)
-    if item is None or quantity < item.max_capacity:
+    # Runtime input can come from OCR/UI parsing: reject bools, floats,
+    # strings and negative values rather than letting Python comparisons
+    # accidentally treat them as a valid inventory count.
+    if (item is None or not isinstance(quantity, int) or isinstance(quantity, bool)
+            or quantity < item.max_capacity):
         return None
 
     eligible: list[UpgradeTarget] = []
