@@ -1282,3 +1282,33 @@ Regression tests were added for missing/zero counts, specific-book preference, d
 5. Connect the executor to the bot loop behind the agreed automatic-use policy, without reusing the broad Snack Box “use all” routine.
 
 No asset or live device action was fabricated in this change.
+
+## Template asset gap inventory (2026-11-28)
+
+Compared every literal template path declared in `farmbot/game.py` with the committed `templates/` tree at main `1da953a1`. The following declared paths have no corresponding committed image/file or variant directory:
+
+| Template path | Feature affected | Status / safe next step |
+|---|---|---|
+| `buttons/magic_items` | Opening Magic Items inventory | Required for inventory navigation; capture from the user's current village UI |
+| `buttons/magic_items_title` | Confirming the inventory is open | Required; crop the actual “Magic Items” heading |
+| `cards/healer` | Healers following the Queen during Hero Walk | Optional strategy asset; capture from the actual army card |
+| `cards/ground` | Recognizing ground-army card types | Optional strategy asset; capture the actual card family |
+| `cards/lure` | Selecting a lure troop for Clan Castle lure | Optional strategy asset; capture a real troop card |
+| `buildings/clan_castle` | Finding the enemy Clan Castle during battle | Optional for lure logic; capture the Clan Castle across the supported levels |
+| `buildings/loot` | Picture-trained loot building targeting | Optional enhancement; teach storage/collector/mine/drill examples through Pictures |
+| `redact/castle_badge` | Identifying the player's own Clan Castle badge | Personal/private asset; intentionally not committed and should be captured per account |
+
+The asset comparison does not mean every listed feature is wholly broken: some paths are optional and their callers may fall back to other recognition. It does mean those image-based branches cannot be considered fully provisioned by the repository alone.
+
+### Asset integrity rule
+
+Do not fill these paths with generated lookalikes, arbitrary web images, or screenshots from a different game scale/version. Templates are pixel-matching inputs, so a visually similar but incorrectly cropped image can cause false positives. Capture at the documented 920 px screenshot height using the user's current emulator/game language and save through the Pictures page. The personal Clan Castle badge remains local to that account.
+
+### Additional feature gaps confirmed
+
+- Magic Items: the inventory entry policy and planning layer exist, but inventory count OCR, item selection, confirmation, post-use verification, and bot-loop integration are still absent. The two missing Magic Items templates block even the verified inventory-entry step.
+- Boost & Timer Engine: `farmbot/boosts.py` is a pure calculator and remains intentionally opt-in/inert; there is no live potion inventory reader, activation executor, or runtime timer feed. Keep it optional as previously decided.
+- Guardians and Crafted Defenses: the audit above documents dedicated state/executor requirements; neither should be represented as complete until live UI/export data and module/guardian assets are available.
+- Helpers: Builder's Apprentice and Lab Assistant already have task/UI integration. Prospector and Alchemist are separate resource-economy features and are not part of the existing helper assignment path.
+
+The repository's Windows workflow already runs `python -m pytest -n 0` before packaging. However, the Actions API returned no workflow runs for commit `1da953a1`, and the commit status endpoint contained no status records. Tests therefore remain unverified in this session; no green CI claim is made.

@@ -65,3 +65,7 @@ Capture each from your own emulator at the normal 920 px screenshot height.
 The navigation routine refuses to tap if either template is missing, and it
 checks that the Magic Items heading appears after the tap. It does not select
 or consume an item.
+
+## Asset capture checklist
+
+Some strategy branches and newer inventory features need account-specific or game-version-specific templates that are not shipped as generic defaults. Capture them from your own emulator through **Pictures** at the documented 920 px screenshot height. In particular, the Magic Items inventory requires both `buttons/magic_items` and `buttons/magic_items_title`; optional attack recognition may also use `cards/healer`, `cards/ground`, `cards/lure`, `buildings/clan_castle` and `buildings/loot`. Do not substitute generated or unrelated images: a template must match the real in-game crop. The personal `redact/castle_badge` remains local and is not committed.
