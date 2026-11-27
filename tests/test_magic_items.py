@@ -416,3 +416,64 @@ def test_builder_hammer_scan_skips_busy_tab_but_keeps_lab_candidates(monkeypatch
     game = SimpleNamespace(current_tab="buildings")
     targets = scan_builder_targets(game, village, now=1_200)
     assert {target.name for target in targets} == {"Raged Barbarian"}
+
+
+
+def test_magic_item_inventory_templates_are_available_in_pictures_catalog():
+    from farmbot import catalog
+    from farmbot.game import T
+
+    assert catalog.BY_NAME[T.MAGIC_ITEMS].feature == catalog.MAGIC_ITEMS
+    assert catalog.BY_NAME[T.MAGIC_ITEMS_TITLE].feature == catalog.MAGIC_ITEMS
+
+
+def test_open_inventory_fails_closed_without_templates_or_verified_title():
+    from types import SimpleNamespace
+    from farmbot.game import T
+    from farmbot.tasks.magic_items import open_inventory
+
+    class FakeGame:
+        def __init__(self, button_template=True, title_template=True, title_visible=False):
+            self.button_template = button_template
+            self.title_template = title_template
+            self.title_visible = title_visible
+            self.taps = []
+            self.waits = []
+
+        def has(self, template):
+            return ((template == T.MAGIC_ITEMS and self.button_template)
+                    or (template == T.MAGIC_ITEMS_TITLE and self.title_template))
+
+        def find(self, template):
+            if template == T.MAGIC_ITEMS_TITLE and self.title_visible:
+                return (10, 20)
+            if template == T.MAGIC_ITEMS and self.button_template:
+                return SimpleNamespace(point=(30, 40))
+            return None
+
+        def tap(self, *point):
+            self.taps.append(point)
+            self.title_visible = True
+
+        def wait(self, seconds, exact=False):
+            self.waits.append((seconds, exact))
+
+        def refresh(self):
+            pass
+
+    missing_button = FakeGame(button_template=False)
+    assert open_inventory(missing_button) is False
+    assert missing_button.taps == []
+
+    missing_title_template = FakeGame(title_template=False)
+    assert open_inventory(missing_title_template) is False
+    assert missing_title_template.taps == []
+
+    game = FakeGame()
+    assert open_inventory(game) is True
+    assert game.taps == [(30, 40)]
+    assert game.waits == [(1.2, True)]
+
+    already_open = FakeGame(title_visible=True)
+    assert open_inventory(already_open) is True
+    assert already_open.taps == []
