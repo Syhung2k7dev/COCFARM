@@ -155,3 +155,93 @@ def running_targets(village, now: float) -> list[UpgradeTarget]:
                 unlocked=True,
             ))
     return found
+
+
+def targets_from_names(village: Village, names_by_tab: dict[str, set[str]],
+                       priorities: dict[str, int] | None = None,
+                       free_builders: int | None = None,
+                       free_lab: int | None = None) -> list[UpgradeTarget]:
+    """Convert fully-read Build-list names into Hammer candidates.
+
+    A missing/unknown name is never guessed. A worker/research slot must be
+    positively read as free before a candidate is marked startable. The
+    caller should pass only names from a complete successful OCR pass.
+    """
+    from farmbot import gamedata
+
+    priorities = priorities or {}
+    buildings = set(gamedata.BUILDINGS.values()) | set(gamedata.TRAPS.values())
+    heroes = set(gamedata.HEROES.values())
+    troops = set(gamedata.TROOPS.values())
+    spells = set(gamedata.SPELLS.values())
+    pets = set(gamedata.PETS.values())
+
+    found: dict[tuple[str, str], UpgradeTarget] = {}
+    for tab, names in names_by_tab.items():
+        for name in names:
+            if not name or not name.strip():
+                continue
+            if name in heroes:
+                category: Category = "heroes"
+                slot_free = free_builders
+            elif name in pets:
+                category = "pets"
+                slot_free = free_builders
+            elif name in spells:
+                category = "spells"
+                slot_free = free_lab
+            elif name in troops:
+                category = "troops"
+                slot_free = free_lab
+            elif name in buildings and tab == "buildings":
+                category = "buildings"
+                slot_free = free_builders
+            else:
+                # Equipment, unknown OCR names, and names in an unexpected
+                # tab are not valid Hammer candidates.
+                continue
+            if village == "builder" and category == "spells":
+                continue
+            target_id = f"{village}:{tab}:{name.casefold()}"
+            found[(category, name)] = UpgradeTarget(
+                target_id=target_id,
+                name=name,
+                category=category,
+                village=village,
+                can_start=slot_free is not None and slot_free > 0,
+                priority=priorities.get(name, 0),
+                known=True,
+                unlocked=True,
+            )
+    return sorted(found.values(), key=lambda target: (target.category, target.name.casefold()))
+
+
+def scan_home_targets(game: Game, priorities: dict[str, int] | None = None) -> list[UpgradeTarget] | None:
+    """Read Home Village Hammer candidates from an already-open Build list.
+
+    This routine only changes tabs inside the confirmed Build list. It never
+    opens an unknown screen, taps an upgrade row, or presses an upgrade/paid
+    button. None means the list/screen/OCR/slot counters were not positively
+    identified; callers must then leave all Hammers unused.
+    """
+    from farmbot.tasks import build_list
+
+    if not build_list.list_shown(game):
+        return None
+
+    names_by_tab: dict[str, set[str]] = {}
+    for tab, which in (("buildings", "buildings"), ("army", "research"), ("pets", "research")):
+        build_list.open_tab(game, tab, build_list.HOME)
+        if build_list.tab_open(game, tab, build_list.HOME) is not True:
+            return None
+        names = build_list.upgradable_names(game, build_list.HOME, which)
+        if names is None:
+            return None
+        names_by_tab[tab] = names
+
+    # A missing counter is not treated as an idle worker. That leaves the
+    # candidates visible for diagnostics but makes every relevant Hammer
+    # ineligible until the counter can be read.
+    builders = build_list.free_builders(game)
+    lab = build_list.free_lab(game)
+    return targets_from_names("home", names_by_tab, priorities, builders, lab)
