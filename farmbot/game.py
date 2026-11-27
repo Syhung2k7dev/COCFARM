@@ -124,6 +124,8 @@ class T:
     # Home village (optional)
     CLOSE = "buttons/close"
     BUILD = "buttons/build"  # home village, bottom right: opens Buildings & Heroes
+    MAGIC_ITEMS = "buttons/magic_items"  # the village's dedicated Magic Items / Magic Snacks inventory button
+    MAGIC_ITEMS_TITLE = "buttons/magic_items_title"  # title of the opened Magic Items inventory
     GOBLIN = "buttons/goblin"  # over the builder/lab counter: the Goblin Builder/Researcher (gems)
     WALL_SUGGESTION = "buttons/wall_suggestion"  # "Wall x N" in that list
     TOWN_HALL_ROW = "buttons/town_hall_row"  # "Town Hall" in that list: left to the player if they want

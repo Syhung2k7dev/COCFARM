@@ -329,3 +329,31 @@ def scan_builder_targets(game: Game, village_data,
     return targets_from_names("builder", names_by_tab, priorities, free_builders, free_lab)
 
 
+
+
+def open_inventory(game: Game) -> bool:
+    """Open the Magic Items inventory only through verified templates.
+
+    Both templates must be supplied through the Pictures page. If the
+    inventory is already open, return True. Otherwise tap only the positively
+    matched village inventory button and verify the inventory title afterwards.
+    No item is selected or consumed here.
+    """
+    from farmbot.game import T
+
+    if not game.has(T.MAGIC_ITEMS_TITLE):
+        return False
+
+    game.refresh()
+    if game.find(T.MAGIC_ITEMS_TITLE) is not None:
+        return True
+    if not game.has(T.MAGIC_ITEMS):
+        return False
+
+    button = game.find(T.MAGIC_ITEMS)
+    if button is None:
+        return False
+    game.tap(*button.point)
+    game.wait(1.2, exact=True)
+    game.refresh()
+    return game.find(T.MAGIC_ITEMS_TITLE) is not None
