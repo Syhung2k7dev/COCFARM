@@ -1164,3 +1164,36 @@ A deeper source review corrects the earlier broad statement that Helpers were mi
 - [Upstream crafted defense catalogue](https://github.com/chiefpansancolt/clash-of-clans-data/tree/main/data/home/crafted-defenses)
 
 No runtime code was changed in this feature-coverage review. The audit records the confirmed boundaries and the evidence still needed before adding automation.
+
+
+## Official game-behaviour verification — Guardians and Crafted Defenses (2026-11-28)
+
+Checked the feature boundaries against Supercell's own November 16, 2026 Town Hall 19 release notes and current Support articles. These sources clarify that both features are actionable upgrade systems, but each has its own UI and lifecycle.
+
+### Guardians — now confirmed as an upgrade feature
+
+- Supercell confirms Guardians are Home Village defenders; one is selected at a time. The menu is accessed through the Town Hall from TH18 and through the Guardian Shrine at TH19.
+- Supercell explicitly confirms Guardian levels are upgraded with Elixir, and a Guardian cannot defend in regular Battles while its upgrade is in progress. The November 16 TH19 notes say Smasher reaches level 10 at TH19.
+- This confirms a dedicated Guardian upgrade feature is worthwhile; the earlier audit's uncertainty is now narrowed to the game's data/export representation and exact UI automation.
+- COCFARM already maps Guardian Shrine building ID `1000105`, but its current `townhall.py` has no guardian-level collection, guardian timer list or Guardian upgrade state; `gamedata.py` has no Guardian entity map; and `row_names.py` has no Guardian menu recognition. Do not force Guardians into `BUILDINGS` because Shrine and Guardian are distinct objects.
+- The upstream `0.19.1` guardian files list Longshot, Smasher and Logger but only five levels for Smasher in the reviewed file. Supercell's November 16, 2026 release notes say Smasher now reaches level 10. Therefore the upstream guardian record is stale for TH19 and cannot be used as the current level cap or upgrade schedule.
+- Proposed design: a dedicated `GuardianState` parsed only from a verified export field if present; otherwise UI-observed selected Guardian, level, upgrade timer, and available Elixir. A Guardian executor must re-read the selected Guardian and confirm the intended Elixir upgrade button before tapping, then verify the timer/level change. Do not auto-switch the active Guardian without a separate explicit user policy because it changes the village's defensive selection.
+
+### Crafted Defenses — official lifecycle and current phase confirmed
+
+- Supercell confirms each Crafted Defense has independently upgradeable modules, and players may upgrade one module on all three available defenses concurrently if enough Builders and resources are available.
+- Supercell says defenses are temporary for the current Crafting Phase; when the phase ends they convert to Sparky Stones, the station becomes inactive until the next phase, and may be removed if the account does not meet the new TH requirement.
+- Supercell's current Support article lists Hero Hunter, Hot Candle and Cake-A-Pult as the current phase's three defenses and names their distinct modules. This matches the November 2026 game state, not the older Hook Tower/Light Beam/Bomb Hive records inspected earlier.
+- The upstream dataset has a Hero Hunter record with three module IDs and separate 1–10 module upgrade sequences. Its static records are useful to validate a known module, but the current phase and TH gating must be refreshed from current game state; older phase records are not candidates for the current account.
+- COCFARM already recognizes the Crafting Station building ID `1000097`, but ordinary Build List recognition alone is insufficient: the modules are separate upgrade targets and the active defense can cycle. The system must distinguish (a) available defense, (b) selected/active defense, (c) each module and its level, (d) an upgrade running on a module, and (e) phase expiry. A module upgrade must consume one builder slot and the same defense can have separate modules in progress only as allowed by the game's UI.
+- Proposed design: dedicated `CraftedDefenseState` and `CraftedModuleTarget` types; phase-aware data snapshot with source/version/date; module-level OCR/template recognition; current resource price and free-builder confirmation; post-tap verification. Treat a phase transition or unknown module label as a hard stop. Do not infer the three currently available defenses from a stale hardcoded list.
+
+### Official source bookmarks
+
+- [Supercell — Town Hall 19 / Clash of Titans release notes (16 Nov 2026)](https://supercell.com/en/games/clashofclans/blog/release-notes/the-clash-of-titans-update-is-rolling-out/)
+- [Supercell Support — Guardians](https://sc-clashofclans.zendesk.com/hc/en-us/articles/49529107397403-Guardians)
+- [Supercell Support — Crafted Defenses](https://sc-clashofclans.zendesk.com/hc/en-us/articles/49529139405595-Crafted-Defenses)
+- [Upstream Smasher guardian data (compare against TH19 cap)](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/guardians/smasher.json)
+- [Upstream Hero Hunter module data](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/crafted-defenses/hero-hunter.json)
+
+No runtime code was changed in this verification pass. The official behaviour is now documented, while live export and screenshot evidence remain necessary before building the two executors.
