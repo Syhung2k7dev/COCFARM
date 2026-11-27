@@ -1011,3 +1011,8 @@ Rules verified against Supercell support:
 
 
 Builder Base Book target discovery remains unsupported: the export identifies occupied worker slots but not the exact upgraded item, and the current UI/OCR path does not yet provide a sufficiently reliable row-to-slot association. Do not infer the item from the first OCR line. Hammer scans now skip an entire tab when its in-progress marker is visible; this conservative rule avoids mistaking the active row for a startable target while still allowing other tabs with free workers to be considered.
+
+
+### Magic Items inventory entry point
+
+Added template-backed navigation for the October 2026 village inventory button. COCFARM now has explicit template names for the Magic Items button and inventory title, and `open_inventory` taps only a matched button before verifying the title. It selects or consumes no item. Both templates must be captured from the user's emulator through the Pictures page; until then the routine safely returns without tapping.

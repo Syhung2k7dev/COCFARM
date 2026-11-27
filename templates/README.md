@@ -12,7 +12,7 @@ and flags any that are missing):
 
 | Folder | What |
 |---|---|
-| `buttons/` | Home village and battle buttons: Battle, Find a Match, Attack!, Next, End Battle, Okay, Return Home, rewards, event chests, walls, clan chat, requests, donations, disconnect popups |
+| `buttons/` | Home village and battle buttons: Battle, Find a Match, Attack!, Next, End Battle, Okay, Return Home, Magic Items inventory, rewards, event chests, walls, clan chat, requests, donations, disconnect popups |
 | `builder/` | Builder base: the boats, Builder Battle, Find Now!, battle start/end, hero cards, speed, collector bubbles, the elixir cart, walls |
 | `collectors/` | Full gold mine, elixir collector and dark elixir drill bubbles |
 | `donate/` | Each donatable unit as it looks in the donate window (`donate/<name>.png`, the name as in `farmbot/units.py`; `name@2.png` is a second look of the same unit) |
@@ -48,3 +48,20 @@ and the number shown:
 farmbot learn-digits screens/scout.png 195 92 150 34 "1 582 869" --replace
 farmbot inspect --image screens/scout.png
 ```
+
+
+## Magic Items inventory
+
+The October 2026 village interface has a dedicated Magic Items button shared with
+Magic Snacks, beside the Build controls. To let COCFARM open the inventory, add
+both templates from the GUI's **Pictures** page:
+
+- `buttons/magic_items`: crop the dedicated Magic Items / Magic Snacks button
+  on the village screen.
+- `buttons/magic_items_title`: crop the **Magic Items** heading inside the
+  opened inventory.
+
+Capture each from your own emulator at the normal 920 px screenshot height.
+The navigation routine refuses to tap if either template is missing, and it
+checks that the Magic Items heading appears after the tap. It does not select
+or consume an item.
