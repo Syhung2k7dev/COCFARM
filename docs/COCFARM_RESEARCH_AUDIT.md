@@ -1065,9 +1065,9 @@ Relevant capabilities:
 - [Research Potion data](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/magic-items/potions/research-potion.json)
 - [Laboratory level/cost/time data](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/army-buildings/laboratory.json)
 - [Cannon level/cost/time and availability data](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/defenses/cannon.json)
-- [Potion calculator implementation](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/src/modules/calculators/potions/index.ts)
-- [Calculator tests](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/tests/calculators/potions.test.ts)
-- [Changelog and data freshness](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/CHANGELOG.md)
-- [Open TH19 asset request](https://github.com/chiefpansancancolt/clash-of-clans-data/issues/67)
+- [Potion calculator implementation](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/src/modules/calculators/potions/index.ts)
+- [Calculator tests](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/tests/calculators/potions.test.ts)
+- [Changelog and data freshness](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/CHANGELOG.md)
+- [Open TH19 asset request](https://github.com/chiefpansancolt/clash-of-clans-data/issues/67)
 
 No source code or bundled images were copied into COCFARM in this research pass. This entry records findings and integration boundaries only.
