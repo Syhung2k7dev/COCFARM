@@ -35,6 +35,7 @@ class Picture:
 
 QUICK_EXIT = "Leaving battles without restarting the game"
 SNACKS = "Using snacks and potions"
+MAGIC_ITEMS = "Using instant-upgrade Magic Items"
 BAT_SPELLS = "Casting only Bat Spells"
 QUAKES = "Casting Earthquake Spells"
 WARDEN_SIDE = "Putting the Grand Warden with the most troops"
@@ -125,6 +126,8 @@ PICTURES: list[Picture] = [
             "the button under it.", "Collecting the loot cart", folder=True),
     Picture(T.SNACK_BOX, "Snack box", "Home village: the box left of Build (snacks and potions), without "
             "the red number on its corner.", SNACKS, folder=True),
+    Picture(T.MAGIC_ITEMS, "Magic Items inventory", "Home village: the dedicated Magic Items / Magic Snacks inventory button.", MAGIC_ITEMS),
+    Picture(T.MAGIC_ITEMS_TITLE, "Magic Items inventory title", "The Magic Items inventory after opening it: its title.", MAGIC_ITEMS),
     Picture(T.SNACK_USE, "Snack Use ribbon", "After tapping the snack box: the green \"Use\" ribbon over a "
             "snack that can be used.", SNACKS, folder=True),
     Picture(T.SNACK_USE_WINDOW, "Snack window Use", "After tapping a snack with a green ribbon: the word "
