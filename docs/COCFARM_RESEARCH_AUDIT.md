@@ -1071,3 +1071,43 @@ Relevant capabilities:
 - [Open TH19 asset request](https://github.com/chiefpansancolt/clash-of-clans-data/issues/67)
 
 No source code or bundled images were copied into COCFARM in this research pass. This entry records findings and integration boundaries only.
+
+
+## Comparative audit — upstream dataset vs COCFARM gamedata (2026-11-28)
+
+Compared the upstream `0.19.1` data schema and representative Home Village, Builder Base, magic-item, helper and guardian records with the current `farmbot/gamedata.py`, `farmbot/tasks/upgrade.py`, and Magic Items discovery code.
+
+### Confirmed overlaps
+
+- The upstream JSON `dataId` is the same kind of static game identifier COCFARM maps in `gamedata.py`. Examples checked: Home Village Cannon `1000008`, Laboratory `1000007`, and Builder Base Crusher `1000055`.
+- COCFARM already has ID-to-name dictionaries for `BUILDINGS`, `TROOPS`, `SPELLS`, `HEROES`, `PETS`, `EQUIPMENT`, and `TRAPS`. Its Magic Items Build-list discovery uses these maps to classify OCR names; this is an account-export/UI automation concern, not a missing feature of the upstream data library.
+- The upstream per-level schema contains useful planning fields such as `buildCost`, `buildCostResource`, `buildTime`, `townHallRequired` or `builderHallRequired`, plus `availablePerTownHall` / `availablePerBuilderHall`. These are not presently a local COCFARM upgrade-planning database; COCFARM's live upgrader reads current Build List rows and budgets from the game.
+- Magic-item records explicitly separate item type, effect type, applicability, capacity and sell price. The reviewed Book of Building says instant-complete/buildings, Hammer of Building says instant-upgrade/buildings, and Research Potion says time-reduction/research at 24x for one hour with capacity five. This supports the current policy's separation of book, hammer and potion semantics; it does not establish live ownership or UI usability.
+
+### Coverage gaps and version mismatch
+
+- The upstream package has no Town Hall 19 records in the reviewed snapshot: its changelog/package data stops at Town Hall 18 and Laboratory 16, while issue #67 requests TH19 assets. COCFARM's current `gamedata.py` explicitly includes TH19-era IDs/names (including Dragon Duke and newer building/equipment IDs) sourced from ClashKing static data and other export readers. Therefore, upstream `0.19.1` must **not** overwrite or be treated as a newer replacement for COCFARM's ID map.
+- Upstream has additional structured groups that are not separate top-level dictionaries in `gamedata.py`: guardians (e.g. Logger), helpers (e.g. Builder's Apprentice), and crafted defenses (modular components/upgrades). This is a confirmed schema/category difference, not proof that the current bot's village-export parser can observe or safely upgrade them. Before adding IDs to automation, establish whether those entities occur in the export and whether the in-game Build List exposes them as actionable rows.
+- The upstream dataset includes both villages and many more categories than the current automation maps, but COCFARM's narrower maps are intentionally focused on entities that its export/OCR workflows currently classify. Do not add every upstream troop, guardian, helper, seasonal entity or crafted-defense record indiscriminately.
+- The upstream JSON contains presentation/game-stat metadata as well as upgrade data. COCFARM should import only fields with a demonstrated use case; descriptions, DPS, hitpoints and image paths do not improve upgrade execution by themselves.
+
+### Integration recommendation after comparison
+
+1. Keep `farmbot/gamedata.py` authoritative for export-ID-to-name recognition, especially its newer TH19 coverage. Do not replace it with upstream `0.19.1`.
+2. Do not introduce Node.js or runtime network access. COCFARM targets Python >=3.11; upstream package requires Node >=24.
+3. Defer importing a full upgrade-cost/time dataset until COCFARM has a concrete feature that needs future-level costs/times independently of the live Build List. The current upgrader already reads visible prices and uses account resource budgets; duplicating all level records now would create a second stale source of truth.
+4. If a future planner needs static upgrade metadata, import a small, pinned, generated JSON subset with provenance (upstream repo, commit/package version, source path and retrieval date), schema validation and an explicit refresh command. Keep unknown/newer IDs non-actionable until confirmed.
+5. Investigate guardians, helpers and crafted defenses as separate feature candidates. First verify their appearance in current game exports and UI, then add only the needed data mappings and tests. Never infer upgrade eligibility from a static dataset alone.
+
+### Comparative source bookmarks
+
+- [COCFARM current game ID maps](https://github.com/Syhung2k7dev/COCFARM/blob/main/farmbot/gamedata.py)
+- [COCFARM upgrade task](https://github.com/Syhung2k7dev/COCFARM/blob/main/farmbot/tasks/upgrade.py)
+- [Upstream Cannon record](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/defenses/cannon.json)
+- [Upstream Laboratory record](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/army-buildings/laboratory.json)
+- [Upstream Builder Base Crusher record](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/builder/defenses/crusher.json)
+- [Upstream Builder's Apprentice record](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/other/helpers/builders-apprentice.json)
+- [Upstream Logger guardian record](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/guardians/logger.json)
+- [Upstream crafted Air Bombs record](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/crafted-defenses/air-bombs.json)
+
+No COCFARM runtime code or game data was changed in this comparison pass. The audit was updated only.
