@@ -193,3 +193,60 @@ def test_builder_base_candidates_are_not_startable_without_export_slot_data(monk
     targets = targets_from_names("builder", {"buildings": {"Crusher"}}, free_builders=None, free_lab=None)
     assert len(targets) == 1
     assert targets[0].can_start is False
+
+
+def test_home_scan_requires_the_build_list_to_be_confirmed(monkeypatch):
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import scan_home_targets
+
+    monkeypatch.setattr(build_list, "list_shown", lambda game: False)
+    assert scan_home_targets(object()) is None
+
+
+def test_home_scan_aborts_if_any_tab_or_ocr_is_unverified(monkeypatch):
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import scan_home_targets
+
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
+    monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    calls = []
+
+    def names(game, lst, which):
+        calls.append(which)
+        return {"Archer Tower"} if len(calls) == 1 else None
+
+    monkeypatch.setattr(build_list, "upgradable_names", names)
+    assert scan_home_targets(object()) is None
+    assert calls == ["buildings", "research"]
+
+
+def test_home_scan_uses_only_verified_tabs_and_slot_counters(monkeypatch):
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import scan_home_targets
+
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
+    monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "upgradable_names", lambda game, lst, which: {
+        "buildings": {"Archer Tower"},
+        "research": {"Barbarian"},
+    }[which])
+    monkeypatch.setattr(build_list, "free_builders", lambda game: 1)
+    monkeypatch.setattr(build_list, "free_lab", lambda game: 0)
+
+    targets = scan_home_targets(object())
+    by_name = {item.name: item for item in targets}
+    assert by_name["Archer Tower"].can_start is True
+    assert by_name["Barbarian"].can_start is False
+
+
+def test_builder_scan_requires_export_and_confirmed_build_list(monkeypatch):
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import scan_builder_targets
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(build_list, "list_shown", lambda game: False)
+    village = SimpleNamespace(builder_base_builders=2, builder_finishing={})
+    assert scan_builder_targets(object(), village) is None
+    assert scan_builder_targets(object(), None) is None
