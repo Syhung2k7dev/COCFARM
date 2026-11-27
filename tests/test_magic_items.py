@@ -315,6 +315,7 @@ def test_builder_scan_accepts_only_fresh_export_and_verified_build_tabs(monkeypa
     monkeypatch.setattr(build_list, "list_shown", lambda game: True)
     monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
     monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: False)
     monkeypatch.setattr(build_list, "upgradable_names", lambda game, lst, which: {
         "buildings": {"Crusher"}, "research": {"Raged Barbarian"}
     }[which])
@@ -351,7 +352,7 @@ def test_home_book_targets_return_empty_for_a_fresh_export_with_no_active_timers
 
 def test_home_hammer_scan_skips_busy_tab_but_keeps_other_tabs(monkeypatch):
     import farmbot.gamedata as gamedata
-    from farmbot.tasks import build_list, row_names
+    from farmbot.tasks import build_list
     from farmbot.tasks.magic_items import scan_home_targets
 
     monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Archer Tower", 2: "Cannon"})
@@ -385,13 +386,13 @@ def test_hammer_scan_skips_entire_busy_tab_without_relying_on_ocr(monkeypatch):
     from farmbot.tasks.magic_items import _exclude_busy_row
 
     monkeypatch.setattr(build_list, "busy", lambda game: True)
-    assert _exclude_busy_row(object(), build_list.HOME, "buildings", {"Archer Tower"}) == set()
+    assert _exclude_busy_row(object(), {"Archer Tower"}) == set()
 
 
 def test_builder_hammer_scan_skips_busy_tab_but_keeps_lab_candidates(monkeypatch):
     from types import SimpleNamespace
     import farmbot.gamedata as gamedata
-    from farmbot.tasks import build_list, row_names
+    from farmbot.tasks import build_list
     from farmbot.tasks.magic_items import scan_builder_targets
 
     monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Crusher", 2: "Cannon"})

@@ -236,7 +236,7 @@ def targets_from_names(village: Village, names_by_tab: dict[str, set[str]],
 
 
 
-def _exclude_busy_row(game: Game, lst, which: str, names: set[str]) -> set[str]:
+def _exclude_busy_row(game: Game, names: set[str]) -> set[str]:
     """Skip a whole tab while its first row is upgrading.
 
     The OCR list includes the active row. Rather than risk mistaking a later
@@ -270,7 +270,7 @@ def scan_home_targets(game: Game, priorities: dict[str, int] | None = None) -> l
         names = build_list.upgradable_names(game, build_list.HOME, which)
         if names is None:
             return None
-        names = _exclude_busy_row(game, build_list.HOME, which, names)
+        names = _exclude_busy_row(game, names)
         if names is None:
             return None
         names_by_tab[tab] = names
@@ -317,7 +317,7 @@ def scan_builder_targets(game: Game, village_data,
         names = build_list.upgradable_names(game, build_list.BUILDER, which)
         if names is None:
             return None
-        names = _exclude_busy_row(game, build_list.BUILDER, which, names)
+        names = _exclude_busy_row(game, names)
         if names is None:
             return None
         names_by_tab[tab] = names
