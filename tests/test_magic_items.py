@@ -371,8 +371,6 @@ def test_home_hammer_scan_skips_busy_tab_but_keeps_other_tabs(monkeypatch):
     }[which])
     monkeypatch.setattr(build_list, "free_builders", lambda game: 1)
     monkeypatch.setattr(build_list, "free_lab", lambda game: 1)
-        [(100, "Archer Tower")] if which == "buildings" else []
-    ))
     game = type("FakeGame", (), {"current_tab": "buildings"})()
     monkeypatch.setattr(build_list, "open_tab", lambda game, tab, lst: setattr(game, "current_tab", tab))
 
@@ -410,8 +408,6 @@ def test_builder_hammer_scan_skips_busy_tab_but_keeps_lab_candidates(monkeypatch
     }[which])
     monkeypatch.setattr(build_list, "free_builders", lambda game: 1)
     monkeypatch.setattr(build_list, "free_lab", lambda game: 1)
-        [(100, "Crusher")] if which == "buildings" else []
-    ))
     village = SimpleNamespace(
         timestamp=1_000,
         builder_base_builders=2,
