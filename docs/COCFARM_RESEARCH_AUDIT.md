@@ -1,6 +1,6 @@
 > **Current project context (updated 2026-11-28):** This document was recovered from the historical `Syhung2k7dev/CoC_Bot` research branch and moved here as a reference. The active project is **COCFARM itself**; this repository is the sole runtime and implementation base. Do not interpret historical references to a “migration branch” or CoC_Bot as a plan to move COCFARM into CoC_Bot. Historical findings, repository links, PR/issue reviews, and design references are retained below. Where earlier notes conflict with later user decisions, the **Updated project decisions** section and the current project decisions below take precedence. No third-party source code is imported merely by retaining these notes.
 
-> **Implementation status (updated 2026-11-28):** The authoritative branch is [`main`](https://github.com/Syhung2k7dev/COCFARM/tree/main), currently at [`7d5df945`](https://github.com/Syhung2k7dev/COCFARM/commit/7d5df9456b8c9dd3eae10441824f3ee7a9b02ed4). The former `cocfarm-enhancements` branch is an ancestor of `main` (0 commits ahead, 6 behind) and is no longer the active target. Main contains the Magic Items fail-closed policy, fresh-export checks, Build-list discovery and template-verified inventory entry; live inventory counting, item selection/consumption and post-use verification remain incomplete. Optional Boost & Timer calculations remain disconnected from the farming loop. The current regression suite lives under `tests/`; the TH19 Squad picker fix and its focused test are recorded below. No CI status record is available for the previous audit head, and the new change must not be described as CI-passing until a run is observed.
+> **Implementation status (updated 2026-11-28):** The authoritative branch is [`main`](https://github.com/Syhung2k7dev/COCFARM/tree/main), currently at [`70719a01`](https://github.com/Syhung2k7dev/COCFARM/commit/70719a01e77efe8899c6acb89b403f8bc2f3b9b3). Main contains the TH19 Squad research picker, fail-closed Magic Item target policy, inventory-aware planning helper and specialized-book reservation. Live Magic Item inventory reading, selection/consumption, post-use verification and bot-loop integration remain incomplete. Optional Boost & Timer calculations remain disconnected from the farming loop. Focused regression tests have been added, but no Actions workflow run or commit status record was observed for the latest head; do not claim the tests or CI passed until a run is observed.
 
 > **Current decisions:** No Dry Run mode; auto-use eligible instant-upgrade items with item-specific eligibility/capacity; never spend gems or paid currency automatically; Boost & Timer Engine is optional and user-enabled; local OCR/CV only; no Telegram, Web Dashboard, iPhone Shortcut, or external AI/OCR service. Keep safeguards for unknown screens, re-identification, bounded actions, and post-action verification.
 
@@ -1312,3 +1312,36 @@ Do not fill these paths with generated lookalikes, arbitrary web images, or scre
 - Helpers: Builder's Apprentice and Lab Assistant already have task/UI integration. Prospector and Alchemist are separate resource-economy features and are not part of the existing helper assignment path.
 
 The repository's Windows workflow already runs `python -m pytest -n 0` before packaging. However, the Actions API returned no workflow runs for commit `1da953a1`, and the commit status endpoint contained no status records. Tests therefore remain unverified in this session; no green CI claim is made.
+
+
+## CoC_Bot fork re-audit: reusable code and asset boundaries (2026-11-28)
+
+The user's fork, [Syhung2k7dev/CoC_Bot](https://github.com/Syhung2k7dev/CoC_Bot), is a fork of [m24842/CoC_Bot](https://github.com/m24842/CoC_Bot). The inspected fork snapshot is `main`, tree/commit `00c400a60a454d971a1132bb3607c04ecde3cd36`. GitHub reports the repository license as MIT, and the checked-in `LICENSE` contains the MIT grant and attribution condition. Preserve the upstream copyright/license notice if any source is copied. This does not establish that every bundled image or font is MIT-licensed: game UI crops and font files need their own provenance/license check before redistribution.
+
+### What is technically useful
+
+- `src/utils.py::Frame_Handler`: useful reference for normalized-coordinate cropping, grayscale/high-contrast preprocessing, template matching, confidence thresholds, returning all matches, and parallel template matching. COCFARM already has its own `farmbot/vision.py` and `farmbot/game.py` abstractions; do not replace them wholesale.
+- `src/utils.py::Asset_Manager`: a simple resource loader for fonts and flat groups of PNG templates. This is a reference only; COCFARM's `farmbot pictures` workflow and nested template directories are more suitable for its current asset model.
+- `src/upgrader.py`: useful ideas for reading builder/lab availability from the rendered HUD, detecting suggested upgrades, and comparing text rendered from a game font against a cropped upgrade name. COCFARM already has a more structured Build List, row-name recognition, resource-aware selection and explicit gem-spend protection, so port only a demonstrated missing detector or regression fix.
+- `src/attacker.py`: useful reference for troop-card boundary detection using vertical edge profiles, card-gap classes, count markers and color cues. COCFARM already has `farmbot/armybar.py`, deployment verification and fallback logic; compare the two on the same current screenshots before considering any replacement.
+- `src/configs.template.py`: confirms independent Home/Builder attack switches, troop-slot range controls, clan-troop exclusion and priority-mode toggles. These are configuration ideas, not reasons to import CoC_Bot's remote/local HTTP exclusion service or its web/Telegram/iPhone features, which are out of scope.
+
+### Asset inventory and suitability
+
+The fork contains nine small gameplay template PNGs: seven attacker controls (`battle_starts_in`, `confirm_attack`, `end_battle`, `find_now`, `okay`, `return_home`, `surrender`) and two misc images (`boat_icon`, `slash`). It also contains nine upgrader PNGs (`assign_assistant`, `builder_gold`, `collect`, `confirm`, `confirm_assistant`, `green_tag`, `home_gold`, `upgrade`, `upgrade_name`) and two TTF fonts (`CCBackBeat`, `SupercellMagic`). The tree additionally lists app branding images and media; the MOV files are Git LFS pointers in this tree, not directly usable video files through the inspected text endpoint.
+
+These assets are not drop-in replacements for COCFARM templates:
+- CoC_Bot fixes its emulator window at 1920×1080 and its matching code loads those assets against that display configuration.
+- COCFARM documents its template capture scale as 920 px screen height and stores a much larger, nested set of purpose-specific templates.
+- A matching filename or similar-looking button is not proof of pixel compatibility. No gameplay PNG blob had an identical SHA to a COCFARM template in the compared trees (the only identical blob was an empty `__init__.py`).
+- The CoC_Bot tree has no Magic Items inventory icon/count templates, no Magic Items item-card templates, and no potion/Boost inventory templates. It therefore does not close the currently audited COCFARM Magic Items or Boost asset gaps.
+
+Use the CoC_Bot screenshots as visual/reference material only. If a control is genuinely missing in COCFARM, capture it from the current COCFARM emulator at the documented 920 px height and validate it with `farmbot locate`; do not copy a 1920×1080 crop and assume it will match. Do not redistribute the two font files or game-derived images until their separate licenses/provenance are confirmed.
+
+### Porting decision
+
+1. **Keep COCFARM's runtime and vision architecture.** It already has broader task coverage, a richer template tree and a current capture workflow.
+2. **Compare troop-card detection** between `src/attacker.py` and `farmbot/armybar.py` on identical screenshots. Port only an isolated algorithmic improvement with regression tests; do not replace the current detector based on source reading alone.
+3. **Compare upgrade HUD/name recognition** between `src/upgrader.py` and `farmbot/tasks/build_list.py` / `farmbot/tasks/row_names.py`. Any improvement must preserve COCFARM's Build List filters, resource checks and no-gem-spend rule.
+4. **Consider only the missing configuration semantics** (independent Home/Builder attack toggles, troop slot range, optional exclusion of donated troops, and priority disable) if they remain useful after reviewing COCFARM's current GUI/config wiring. Do not import CoC_Bot's remote web service, Telegram, iPhone Shortcut or Groq OCR path.
+5. No CoC_Bot source or binary asset was copied into COCFARM in this audit. This is a comparative research record, not an implementation or runtime validation claim.
