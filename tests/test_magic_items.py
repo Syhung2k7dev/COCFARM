@@ -95,3 +95,101 @@ def test_running_targets_uses_only_known_home_export_timers(monkeypatch):
         ("Unicorn", "pets", 1_400),
     }
     assert all(item.village == "home" and item.running for item in targets)
+
+
+def test_targets_from_build_list_names_respects_categories_and_free_slots(monkeypatch):
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import targets_from_names
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Archer Tower"})
+    monkeypatch.setattr(gamedata, "TRAPS", {2: "Giant Bomb"})
+    monkeypatch.setattr(gamedata, "HEROES", {3: "Barbarian King"})
+    monkeypatch.setattr(gamedata, "TROOPS", {4: "Barbarian"})
+    monkeypatch.setattr(gamedata, "SPELLS", {5: "Lightning Spell"})
+    monkeypatch.setattr(gamedata, "PETS", {6: "Unicorn"})
+    targets = targets_from_names(
+        "home",
+        {
+            "buildings": {"Archer Tower", "Giant Bomb", "Barbarian King", "Unknown OCR"},
+            "army": {"Barbarian", "Lightning Spell"},
+            "pets": {"Unicorn"},
+        },
+        priorities={"Archer Tower": 5},
+        free_builders=0,
+        free_lab=1,
+    )
+    by_name = {item.name: item for item in targets}
+    assert set(by_name) == {"Archer Tower", "Giant Bomb", "Barbarian King", "Barbarian",
+                            "Lightning Spell", "Unicorn"}
+    assert by_name["Archer Tower"].category == "buildings"
+    assert by_name["Giant Bomb"].category == "buildings"
+    assert by_name["Barbarian King"].category == "heroes"
+    assert by_name["Unicorn"].category == "pets"
+    assert by_name["Barbarian"].can_start is True
+    assert by_name["Lightning Spell"].can_start is True
+    assert by_name["Archer Tower"].can_start is False
+    assert by_name["Barbarian King"].can_start is False
+    assert by_name["Unicorn"].can_start is False
+    assert by_name["Archer Tower"].priority == 5
+
+
+def test_targets_from_build_list_does_not_guess_unknown_or_equipment(monkeypatch):
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import targets_from_names
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {})
+    monkeypatch.setattr(gamedata, "TROOPS", {})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    targets = targets_from_names("home", {"buildings": {"Unknown", "Magic Mirror", ""}},
+                                 free_builders=5, free_lab=5)
+    assert targets == []
+
+
+def test_builder_base_spell_names_are_not_magic_hammer_targets(monkeypatch):
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import targets_from_names
+
+    monkeypatch.setattr(gamedata, "SPELLS", {1: "Builder Spell"})
+    targets = targets_from_names("builder", {"army": {"Builder Spell"}}, free_lab=1)
+    assert targets == []
+
+
+def test_builder_base_candidates_use_export_slot_counts(monkeypatch):
+    from types import SimpleNamespace
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import targets_from_names
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Crusher"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {2: "Battle Machine"})
+    monkeypatch.setattr(gamedata, "TROOPS", {3: "Raged Barbarian"})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    village = SimpleNamespace(builder_base_builders=2, builder_finishing={"builders": (1000,), "lab": ()})
+    free_builders = village.builder_base_builders - len(village.builder_finishing["builders"])
+    free_lab = 0 if village.builder_finishing["lab"] else 1
+    targets = targets_from_names("builder", {"buildings": {"Crusher", "Battle Machine"},
+                                             "army": {"Raged Barbarian"}},
+                                 free_builders=free_builders, free_lab=free_lab)
+    by_name = {item.name: item for item in targets}
+    assert by_name["Crusher"].can_start is True
+    assert by_name["Battle Machine"].can_start is True
+    assert by_name["Raged Barbarian"].can_start is True
+
+
+def test_builder_base_candidates_are_not_startable_without_export_slot_data(monkeypatch):
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import targets_from_names
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Crusher"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {})
+    monkeypatch.setattr(gamedata, "TROOPS", {})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    targets = targets_from_names("builder", {"buildings": {"Crusher"}}, free_builders=None, free_lab=None)
+    assert len(targets) == 1
+    assert targets[0].can_start is False
