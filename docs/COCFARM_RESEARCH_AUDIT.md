@@ -1016,3 +1016,58 @@ Builder Base Book target discovery remains unsupported: the export identifies oc
 ### Magic Items inventory entry point
 
 Added template-backed navigation for the October 2026 village inventory button. COCFARM now has explicit template names for the Magic Items button and inventory title, and `open_inventory` taps only a matched button before verifying the title. It selects or consumes no item. Both templates must be captured from the user's emulator through the Pictures page; until then the routine safely returns without tapping.
+
+
+## Research entry — chiefpansancolt/clash-of-clans-data (2026-11-28)
+
+Repository: https://github.com/chiefpansancolt/clash-of-clans-data  
+License: MIT (repository LICENSE); verify provenance/rights separately before redistributing bundled game artwork.  
+Reviewed package version: `0.19.1`; default branch: `main`; package requires Node.js >=24; data source declared by the project: Clash of Clans Wiki.  
+Reviewed repository state: latest changelog release is `0.19.1` dated 2026-10-29; repository push timestamp is 2026-11-06. The repository is active but its data snapshot is not guaranteed to reflect the live game.
+
+### What the repository provides
+
+This is a structured, typed game-data library, not an automation bot and not an official Supercell API. It organizes JSON data and TypeScript query APIs for Home Village, Builder Base, Clan Capital, clan data, achievements, ranked battles, season pass, magic items, and calculators. The data records include stable IDs/names, categories, per-level costs and build/research times, Town Hall/Builder Hall requirements, availability counts, and relative image paths.
+
+Relevant capabilities:
+- Home Village: defenses, traps, walls, troops, spells, siege machines, heroes, hero equipment, pets, resource buildings, army buildings, guardians and Town Hall.
+- Builder Base: defenses, traps, walls, troops, heroes, resource/army buildings, Builder Hall and league data.
+- Clan Capital: defenses, troops, spells, buildings, districts and leagues.
+- Magic Items: five books, four hammers, eight potions, five snacks and utility items, with item-specific effect/applicability fields, storage capacity and selling price.
+- Calculators: builder/research boosts, potions/snacks, Clock Tower, gems and helper effects.
+- Image assets: building-level images and magic-item icons are bundled under the package's `images/` tree.
+
+### Findings useful to COCFARM
+
+1. **Use the JSON as a data reference, not the TypeScript package at runtime.** COCFARM is Python-based and this package is Node.js/TypeScript with Node >=24. Avoid introducing a Node runtime dependency just to read game data. If integration is justified, create a small, curated, version-stamped JSON snapshot for COCFARM and a repeatable import/validation script. Keep the bot functional offline; do not fetch upstream data during normal farming.
+2. **A stronger source for upgrade metadata.** Per-level records provide costs, resource type, duration, required Town Hall/Builder Hall, and image variants. Availability tables include structure counts and post-merge counts. This can reduce hand-maintained constants in planning and eligibility checks, provided every field is mapped and validated against COCFARM's own export/UI observations.
+3. **Magic-item policy cross-check.** The data separates `itemType`, `effect.type`, `effect.appliesTo`, `maxCapacity`, and `sellingPrice`. In the reviewed data, books use `instant-complete`; hammers use `instant-upgrade`; potions/snacks carry effect type, multiplier, duration and target. This is a useful schema for future inventory policy and avoids assuming all items have identical capacities or applicability. Keep the existing COCFARM policy authoritative for execution; data alone does not prove an item is currently owned, usable, or valid for a particular live target.
+4. **Visual assets are references, not live-screen templates.** A static icon or per-level building render is not equivalent to an emulator screenshot, selected-item state, dialog, button, or inventory count. Do not use these assets as a substitute for the user's actual emulator captures and do not add guessed tap coordinates. Continue to require screen/template confirmation and post-action state verification.
+5. **Do not assume complete current-game coverage.** The reviewed data/changelog covers Town Hall 18 and Laboratory level 16. Open issue [#67 — TH 19 assets please](https://github.com/chiefpansancolt/clash-of-clans-data/issues/67), opened 2026-11-16, explicitly requests TH19 assets. Treat TH19 and any newer content as missing/unverified until the upstream data and changelog actually contain it. Do not extrapolate level caps, requirements, costs or images.
+6. **Freshness and source caveat.** The project says its data comes from the Clash of Clans Wiki and is updated with game updates; it is community-maintained, not an official Supercell feed. Record the upstream commit/package version and review changelog/issues before refreshing the local snapshot. Cross-check critical values against the live game or official support where possible.
+7. **Test architecture worth learning from.** The repository has separate tests for each data module and calculator family, plus CI stages for formatting, type/lint checks, test coverage and build. COCFARM can adopt the principle: validate schema completeness, unique IDs, monotonic/valid level sequences, resource/time fields, and item effect/capacity consistency in Python tests. Do not copy TypeScript implementation code.
+
+### Integration decision
+
+- **Adopt as a reference dataset:** yes, for upgrade metadata, Town Hall/Builder Hall eligibility, item categories/effects/capacities, and data-validation ideas.
+- **Vendor the entire repository or all images:** no. Keep COCFARM lean; do not redistribute third-party game artwork without separately confirming its rights.
+- **Add a live dependency or network fetch to the bot loop:** no. Any future import should be an explicit maintainer-controlled refresh into a pinned local snapshot.
+- **Replace COCFARM's live OCR/export observations with upstream records:** no. Static data describes what can exist; only the live game/export tells the bot what this account currently owns, what level it has, what is upgrading, and what items are in inventory.
+- **Change Magic Items execution policy based only on this repository:** no. It is corroborating reference data, not proof of current inventory or target state.
+
+### Direct source bookmarks
+
+- [Repository README and API overview](https://github.com/chiefpansancolt/clash-of-clans-data#readme)
+- [Magic Items module documentation](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/src/modules/magic-items/README.md)
+- [Magic-item JSON data](https://github.com/chiefpansancolt/clash-of-clans-data/tree/main/data/magic-items)
+- [Book of Building data](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/magic-items/books/book-of-building.json)
+- [Hammer of Building data](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/magic-items/hammers/hammer-of-building.json)
+- [Research Potion data](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/magic-items/potions/research-potion.json)
+- [Laboratory level/cost/time data](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/army-buildings/laboratory.json)
+- [Cannon level/cost/time and availability data](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/defenses/cannon.json)
+- [Potion calculator implementation](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/src/modules/calculators/potions/index.ts)
+- [Calculator tests](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/tests/calculators/potions.test.ts)
+- [Changelog and data freshness](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/CHANGELOG.md)
+- [Open TH19 asset request](https://github.com/chiefpansancancolt/clash-of-clans-data/issues/67)
+
+No source code or bundled images were copied into COCFARM in this research pass. This entry records findings and integration boundaries only.
