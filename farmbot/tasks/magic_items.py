@@ -245,3 +245,37 @@ def scan_home_targets(game: Game, priorities: dict[str, int] | None = None) -> l
     builders = build_list.free_builders(game)
     lab = build_list.free_lab(game)
     return targets_from_names("home", names_by_tab, priorities, builders, lab)
+
+
+def scan_builder_targets(game: Game, village_data,
+                         priorities: dict[str, int] | None = None) -> list[UpgradeTarget] | None:
+    """Read Builder Base Hammer candidates from its already-open Build list.
+
+    Builder availability comes from the account export: Master Builder + OTTO
+    minus the currently occupied builder slots; the Star Laboratory is one
+    slot. If the export is missing or the list/OCR cannot be verified, return
+    None so no Hammer is used on a guess.
+    """
+    from farmbot.tasks import build_list
+
+    if village_data is None or not build_list.list_shown(game):
+        return None
+    total_builders = getattr(village_data, "builder_base_builders", 0)
+    if total_builders <= 0:
+        return None
+
+    names_by_tab: dict[str, set[str]] = {}
+    for tab, which in (("buildings", "buildings"), ("army", "research")):
+        build_list.open_tab(game, tab, build_list.BUILDER)
+        if build_list.tab_open(game, tab, build_list.BUILDER) is not True:
+            return None
+        names = build_list.upgradable_names(game, build_list.BUILDER, which)
+        if names is None:
+            return None
+        names_by_tab[tab] = names
+
+    busy = getattr(village_data, "builder_finishing", {}) or {}
+    active_builders = len(busy.get("builders", ()))
+    free_builders = max(0, total_builders - active_builders)
+    free_lab = 0 if busy.get("lab") else 1
+    return targets_from_names("builder", names_by_tab, priorities, free_builders, free_lab)

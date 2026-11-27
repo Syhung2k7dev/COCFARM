@@ -155,3 +155,41 @@ def test_builder_base_spell_names_are_not_magic_hammer_targets(monkeypatch):
     monkeypatch.setattr(gamedata, "SPELLS", {1: "Builder Spell"})
     targets = targets_from_names("builder", {"army": {"Builder Spell"}}, free_lab=1)
     assert targets == []
+
+
+def test_builder_base_candidates_use_export_slot_counts(monkeypatch):
+    from types import SimpleNamespace
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import targets_from_names
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Crusher"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {2: "Battle Machine"})
+    monkeypatch.setattr(gamedata, "TROOPS", {3: "Raged Barbarian"})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    village = SimpleNamespace(builder_base_builders=2, builder_finishing={"builders": (1000,), "lab": ()})
+    free_builders = village.builder_base_builders - len(village.builder_finishing["builders"])
+    free_lab = 0 if village.builder_finishing["lab"] else 1
+    targets = targets_from_names("builder", {"buildings": {"Crusher", "Battle Machine"},
+                                             "army": {"Raged Barbarian"}},
+                                 free_builders=free_builders, free_lab=free_lab)
+    by_name = {item.name: item for item in targets}
+    assert by_name["Crusher"].can_start is True
+    assert by_name["Battle Machine"].can_start is True
+    assert by_name["Raged Barbarian"].can_start is True
+
+
+def test_builder_base_candidates_are_not_startable_without_export_slot_data(monkeypatch):
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import targets_from_names
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Crusher"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {})
+    monkeypatch.setattr(gamedata, "TROOPS", {})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    targets = targets_from_names("builder", {"buildings": {"Crusher"}}, free_builders=None, free_lab=None)
+    assert len(targets) == 1
+    assert targets[0].can_start is False
