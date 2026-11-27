@@ -997,3 +997,14 @@ The Magic Items policy can now turn COCFARM's fully OCR-read Home Village Build 
 
 
 The same candidate-discovery layer now supports the Builder Base Build list. It verifies both tabs and the full OCR pass, then derives free Master Builder/OTTO and Star Laboratory slots from the village export's occupied-slot timers. Missing export data means no Builder Base Hammer candidate is marked startable. Builder Base books remain unsupported because the export records only which slot is busy, not the exact upgrade target.
+
+
+### Optional Boost & Timer Engine — first pure domain layer
+
+Added an original, device-independent interval calculator in `farmbot/boosts.py`. It models only three effects with current Supercell-documented rates and durations: Builder Potion (10x for 1 hour), Research Potion (24x for 1 hour), and Pet Potion (24x for 1 hour). Reusing the same potion extends its duration rather than increasing its multiplier. Maintenance intervals can pause only boosts explicitly marked as pausing; ordinary work continues.
+
+This is deliberately a calculation layer only: it is not connected to the farming loop, does not activate potions, and remains inert unless a future opt-in configuration and live UI integration call it. Clock Tower Potion, Builder Base potion effects, snack stacking, and any unverified combinations are excluded rather than guessed. No source code from the unlicensed clash-planner repository was copied; the interval implementation is original.
+
+Rules verified against Supercell support:
+- [Magic Items & The Trader](https://support.supercell.com/clash-of-clans/en/articles/magic-items-and-the-trader.html)
+- [Maintenance Breaks](https://support.supercell.com/clash-of-clans/en/articles/maintenance-breaks-2.html)
