@@ -108,6 +108,30 @@ def choose_target(item_id: str, quantity: int, targets: list[UpgradeTarget]) -> 
                                              target.name.casefold(), target.target_id))
 
 
+def plan_uses(quantities: dict[str, int], targets: list[UpgradeTarget]) -> list[tuple[str, UpgradeTarget]]:
+    """Plan distinct item/target pairs without consuming anything.
+
+    Specific items are assigned before universal books/hammers, preserving
+    universal items for categories with no narrower match. Each target is
+    reserved at most once. Unknown inventory entries and unreadable quantities
+    are ignored.
+    """
+    candidates = sorted(
+        (item for item_id, item in ITEMS.items()
+         if isinstance(quantities.get(item_id), int)
+         and quantities[item_id] >= item.max_capacity),
+        key=lambda item: (len(item.applies_to), item.item_id),
+    )
+    remaining = list(targets)
+    planned: list[tuple[str, UpgradeTarget]] = []
+    for item in candidates:
+        chosen = choose_target(item.item_id, quantities[item.item_id], remaining)
+        if chosen is None:
+            continue
+        planned.append((item.item_id, chosen))
+        remaining = [target for target in remaining if target.target_id != chosen.target_id]
+    return planned
+
 
 def _fresh_export(village_data, now: float, max_age: int | None = None) -> bool:
     """Whether the village export is recent enough for target/timer decisions."""
