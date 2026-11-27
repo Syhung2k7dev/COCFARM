@@ -236,29 +236,17 @@ def targets_from_names(village: Village, names_by_tab: dict[str, set[str]],
 
 
 
-def _exclude_busy_row(game: Game, lst, which: str, names: set[str]) -> set[str] | None:
-    """Remove the first in-progress row from names read for Hammer candidates.
+def _exclude_busy_row(game: Game, lst, which: str, names: set[str]) -> set[str]:
+    """Skip a whole tab while its first row is upgrading.
 
-    Build-list OCR includes every visible name, including the row already
-    upgrading. A Hammer cannot be used on that row. If its name cannot be
-    positively read, the whole tab is unknown rather than treating it as idle.
+    The OCR list includes the active row. Rather than risk mistaking a later
+    row for it when the first line is clipped or unreadable, don't offer any
+    Hammer targets from a tab whose busy marker is visible. Other tabs remain
+    usable if their own workers are free.
     """
-    from farmbot.tasks import build_list, row_names
+    from farmbot.tasks import build_list
 
-    if not build_list.busy(game):
-        return names
-    lines = row_names.read(game, lst, which)
-    if lines is None:
-        return None
-    lines = sorted(lines, key=lambda line: line[0])
-    if not lines or lines[0][1] is None:
-        lines = row_names.read(game, lst, which, green=True)
-        if lines is None:
-            return None
-        lines = sorted(lines, key=lambda line: line[0])
-    if not lines or lines[0][1] is None or lines[0][1] not in names:
-        return None
-    return names - {lines[0][1]}
+    return set() if build_list.busy(game) else names
 
 
 def scan_home_targets(game: Game, priorities: dict[str, int] | None = None) -> list[UpgradeTarget] | None:
@@ -341,77 +329,3 @@ def scan_builder_targets(game: Game, village_data,
     return targets_from_names("builder", names_by_tab, priorities, free_builders, free_lab)
 
 
-def scan_builder_running_targets(game: Game, village_data,
-                                 now: float | None = None,
-                                 max_export_age: int | None = None) -> list[UpgradeTarget] | None:
-    """Identify Builder Base book targets only when UI and export agree.
-
-    The export names Builder Base worker slots but not the item in each slot.
-    The Build list can identify the first in-progress row. We pair those
-    sources only when exactly one timer exists for that slot, the export is
-    fresh, the matching tab is confirmed open, its busy marker is visible,
-    and the first OCR line is a known game item. Any disagreement returns
-    None; an empty list means both tabs were checked and no upgrade was busy.
-    """
-    import time
-    from dataclasses import replace
-
-    from farmbot.tasks import build_list, row_names
-
-    if village_data is None or not build_list.list_shown(game):
-        return None
-    now = time.time() if now is None else now
-    if not _fresh_export(village_data, now, max_export_age):
-        return None
-
-    busy_slots = getattr(village_data, "builder_finishing", {}) or {}
-    found: list[UpgradeTarget] = []
-    for tab, which, slot in (
-        ("buildings", "buildings", "builders"),
-        ("army", "research", "lab"),
-    ):
-        build_list.open_tab(game, tab, build_list.BUILDER)
-        if build_list.tab_open(game, tab, build_list.BUILDER) is not True:
-            return None
-
-        is_busy = build_list.busy(game)
-        endings = tuple(busy_slots.get(slot, ()))
-        if not is_busy:
-            if endings:
-                return None
-            continue
-        if len(endings) != 1:
-            return None
-
-        lines = row_names.read(game, build_list.BUILDER, which)
-        if lines is None:
-            return None
-        lines = sorted(lines, key=lambda line: line[0])
-        if not lines or lines[0][1] is None:
-            lines = row_names.read(game, build_list.BUILDER, which, green=True)
-            if lines is None:
-                return None
-            lines = sorted(lines, key=lambda line: line[0])
-        if not lines or lines[0][1] is None:
-            return None
-
-        name = lines[0][1]
-        candidates = targets_from_names(
-            "builder", {tab: {name}}, free_builders=0, free_lab=0
-        )
-        if len(candidates) != 1:
-            return None
-        end = endings[0]
-        if not isinstance(end, (int, float)):
-            return None
-        remaining = int(end - now)
-        if remaining <= 0:
-            return None
-        found.append(replace(
-            candidates[0],
-            target_id=f"builder:running:{slot}:{name.casefold()}",
-            remaining_seconds=remaining,
-            running=True,
-        ))
-
-    return found

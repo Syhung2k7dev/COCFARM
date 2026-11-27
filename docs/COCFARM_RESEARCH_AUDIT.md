@@ -1010,4 +1010,4 @@ Rules verified against Supercell support:
 - [Maintenance Breaks](https://support.supercell.com/clash-of-clans/en/articles/maintenance-breaks-2.html)
 
 
-Builder Base Book target discovery has since been extended, but remains deliberately narrow: COCFARM now pairs the Build list's visible in-progress row with the village export only when that slot has exactly one timer, the export is fresh, the tab/busy marker are verified, and the first OCR line maps to a known game-data name. Multiple timers in one slot, stale exports, unknown names, or any mismatch return an unknown result; they are never guessed.
+Builder Base Book target discovery remains unsupported: the export identifies occupied worker slots but not the exact upgraded item, and the current UI/OCR path does not yet provide a sufficiently reliable row-to-slot association. Do not infer the item from the first OCR line. Hammer scans now skip an entire tab when its in-progress marker is visible; this conservative rule avoids mistaking the active row for a startable target while still allowing other tabs with free workers to be considered.
