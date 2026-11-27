@@ -1,6 +1,6 @@
 > **Current project context (updated 2026-11-28):** This document was recovered from the historical `Syhung2k7dev/CoC_Bot` research branch and moved here as a reference. The active project is **COCFARM itself**; this repository is the sole runtime and implementation base. Do not interpret historical references to a “migration branch” or CoC_Bot as a plan to move COCFARM into CoC_Bot. Historical findings, repository links, PR/issue reviews, and design references are retained below. Where earlier notes conflict with later user decisions, the **Updated project decisions** section and the current project decisions below take precedence. No third-party source code is imported merely by retaining these notes.
 
-> **Implementation status (2026-11-28):** Active development branch: [`cocfarm-enhancements`](https://github.com/Syhung2k7dev/COCFARM/tree/cocfarm-enhancements). It now contains the current `main` tree plus a merge commit (`d1232b3`); branch comparison is clean with 0 commits behind `main`. The current Magic Items foundation includes fail-closed policy selection, fresh-export timer checks, Home/Builder Base Build-list candidate discovery, and template-verified inventory entry. Optional Boost & Timer calculations are present but remain disconnected from runtime unless explicitly enabled. **Not yet complete:** no captured Magic Items inventory templates/screenshots, no inventory quantity reader, no live item-selection/consume executor, and no end-to-end post-use verification. Do not infer coordinates or consume items until those inputs and safeguards are implemented. GitHub currently reports no Actions run or commit-status record for the latest audit commit, so the expanded suite is not marked CI-verified.
+> **Implementation status (updated 2026-11-28):** The authoritative branch is [`main`](https://github.com/Syhung2k7dev/COCFARM/tree/main), currently at [`7d5df945`](https://github.com/Syhung2k7dev/COCFARM/commit/7d5df9456b8c9dd3eae10441824f3ee7a9b02ed4). The former `cocfarm-enhancements` branch is an ancestor of `main` (0 commits ahead, 6 behind) and is no longer the active target. Main contains the Magic Items fail-closed policy, fresh-export checks, Build-list discovery and template-verified inventory entry; live inventory counting, item selection/consumption and post-use verification remain incomplete. Optional Boost & Timer calculations remain disconnected from the farming loop. The current regression suite lives under `tests/`; the TH19 Squad picker fix and its focused test are recorded below. No CI status record is available for the previous audit head, and the new change must not be described as CI-passing until a run is observed.
 
 > **Current decisions:** No Dry Run mode; auto-use eligible instant-upgrade items with item-specific eligibility/capacity; never spend gems or paid currency automatically; Boost & Timer Engine is optional and user-enabled; local OCR/CV only; no Telegram, Web Dashboard, iPhone Shortcut, or external AI/OCR service. Keep safeguards for unknown screens, re-identification, bounded actions, and post-action verification.
 
@@ -1197,3 +1197,37 @@ Checked the feature boundaries against Supercell's own November 16, 2026 Town Ha
 - [Upstream Hero Hunter module data](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/crafted-defenses/hero-hunter.json)
 
 No runtime code was changed in this verification pass. The official behaviour is now documented, while live export and screenshot evidence remain necessary before building the two executors.
+
+
+## TH19 Squad support audit and picker fix (2026-11-28)
+
+### Official game behaviour
+
+Supercell's November 16, 2026 update introduces Squads as fixed groups deployed together. The Squad Barracks unlocks at Town Hall 8; its 12 levels unlock 12 Squads through TH19. Squad members use the account's corresponding troop levels (unlocked troop types not yet owned join at level 1). Squad-level upgrades are exclusive to TH19 and take place in the Laboratory; level 2 unlocks each Squad's ability, and later Squad levels improve the ability and housing discount. Squads cannot be donated.
+
+Primary references:
+- [Supercell Support — What's New? (November 2026)](https://support.supercell.com/clash-of-clans/en/articles/whats-new-cc-nov26.html)
+- [Supercell Support — Squads](https://support.supercell.com/clash-of-clans/en/articles/squads.html)
+- [Supercell release notes — The Clash of Titans update (16 November 2026)](https://supercell.com/en/games/clashofclans/blog/release-notes/the-clash-of-titans-update-is-rolling-out/)
+
+### Code review at main `7d5df945`
+
+- `farmbot/gamedata.py` already maps the 12 Squad IDs `4000195`–`4000206` to their names. No duplicate IDs or second data source should be added.
+- `farmbot/tasks/row_names.py` already includes Squad Barracks in the Army building picker. Its `RESEARCH_KNOWN` set already sees all names in `gamedata.TROOPS`, so the OCR/name matcher can recognize Squad rows.
+- The gap was `HOME_RESEARCH`: it had no Squad category. Since `RESEARCHABLE` and `PICKS["research"]` are derived from `HOME_RESEARCH`, the GUI's “Only this research” picker could not select any Squad, even though the generic research path could consider rows when no explicit research picks were set.
+- `farmbot/upgradable.py` maps all `gamedata.TROOPS` into its research ID/name map. `farmbot/townhall.py` generically reads `units` for levels and upgrade timers. This is structurally compatible if the game's export places Squad records in that list with those IDs; the exact export representation still needs confirmation from a real TH19 account export.
+- `farmbot/tasks/upgrade.py` sends a non-empty research selection through `_picked_research`, which matches visible row names. The new picker entries therefore use the existing verified-name selection path; no new tapping coordinates or special-case executor were introduced.
+
+### Change made
+
+- Added a `Squads` group to `HOME_RESEARCH` with all 12 Squad names, so `RESEARCHABLE`, `PICKS["research"]`, the settings picker and the existing research selection flow include them.
+- Updated the picker help/description to mention Squads, and changed the survey log wording to the generic “research items” because it now covers more than troops and spells.
+- Added `tests/test_th19_squads.py` to assert all 12 exported Squad IDs are represented in the picker and that each exact name is recognized by the research-name matcher.
+
+### Boundaries and remaining work
+
+- This change adds **research selection only**. It does not claim that Squad training, troop-bar card recognition, one-tap Squad deployment, or the per-layout Town Hall troop choice is implemented. Those flows need a separate code and screenshot/export audit.
+- The generic export parser only proves Squad levels/timers when an actual export shows those IDs in the expected `units` list. Do not assume this until a real TH19 export is inspected.
+- No emulator interaction was performed. Do not infer screen coordinates or consume resources from this change.
+- The focused test was added but not executed in this GitHub-only edit session. Do not mark CI as passed without an observed Actions run.
+

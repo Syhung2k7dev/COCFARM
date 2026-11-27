@@ -867,7 +867,7 @@ def _survey(game: Game, survey: Survey, wanted: dict[str, bool], lst: BuildList)
             continue
         failed.pop(which, None)
         log.info("Upgrades: %d %s can still be upgraded", len(names), "buildings" if which == "buildings"
-                 else "troops and spells")
+                 else "research items")
         others = sorted(names - set(PICKS[which]))
         if others:  # (not pickable: for when the game adds one)
             log.info("Upgrades: in the %s list, not among the picks: %s", which, ", ".join(others),

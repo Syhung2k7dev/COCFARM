@@ -85,7 +85,7 @@ EQUIPMENT_HELP = ("Pick hero equipment, then put it in order: the Blacksmith upg
                   "at once. None picked: any, the equipped pieces first. Each shows its level, from your village "
                   "data; outlined in green: maxed (Common pieces go to 18, Epic ones to 27). Needs the Blacksmith "
                   "(Town Hall 8) and Windows' own text reading.")
-RESEARCH_HELP = ("Pick troops, spells and siege machines, then put them in order: the laboratory researches the "
+RESEARCH_HELP = ("Pick troops, spells, siege machines and Squads, then put them in order: the laboratory researches the "
                  "first it can pay for, and nothing else. None picked: any. Each shows its level, from your village "
                  "data. Greyed out: nothing left to research at your Laboratory for now (back once it's "
                  "upgraded); outlined in green too: unlocked and maxed there.")
@@ -4893,7 +4893,7 @@ class FarmbotWindow(FluentWindow):
                                                     ONLY_HELP, "buildings")
         self.pickers["upgrade.research_only"] = self._picker(
             ups, "upgrade.research_only", HOME_RESEARCH, "Only this research", RESEARCH_HELP,
-            "troops and spells", tiles=True)
+            "troops, spells and Squads", tiles=True)
         self.pickers["upgrade.equipment_only"] = self._picker(
             ups, "upgrade.equipment_only", HOME_EQUIPMENT, "Only this equipment", EQUIPMENT_HELP, "equipment",
             tiles=True)
