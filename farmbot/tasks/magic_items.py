@@ -181,16 +181,20 @@ def targets_from_names(village: Village, names_by_tab: dict[str, set[str]],
         for name in names:
             if not name or not name.strip():
                 continue
-            if name in heroes:
+            # Names are accepted only from tabs whose OCR dictionary can
+            # legitimately contain that kind of upgrade. This prevents a
+            # coincidental/incorrect OCR match in another tab from becoming
+            # a Hammer target.
+            if name in heroes and tab in {"buildings", "army"}:
                 category: Category = "heroes"
                 slot_free = free_builders
-            elif name in pets:
+            elif name in pets and tab in {"pets", "army"}:
                 category = "pets"
                 slot_free = free_builders
-            elif name in spells:
+            elif name in spells and tab == "army":
                 category = "spells"
                 slot_free = free_lab
-            elif name in troops:
+            elif name in troops and tab == "army":
                 category = "troops"
                 slot_free = free_lab
             elif name in buildings and tab == "buildings":
@@ -248,7 +252,9 @@ def scan_home_targets(game: Game, priorities: dict[str, int] | None = None) -> l
 
 
 def scan_builder_targets(game: Game, village_data,
-                         priorities: dict[str, int] | None = None) -> list[UpgradeTarget] | None:
+                         priorities: dict[str, int] | None = None,
+                         now: float | None = None,
+                         max_export_age: int | None = None) -> list[UpgradeTarget] | None:
     """Read Builder Base Hammer candidates from its already-open Build list.
 
     Builder availability comes from the account export: Master Builder + OTTO
@@ -256,9 +262,18 @@ def scan_builder_targets(game: Game, village_data,
     slot. If the export is missing or the list/OCR cannot be verified, return
     None so no Hammer is used on a guess.
     """
-    from farmbot.tasks import build_list
+    import time
+
+    from farmbot.tasks import build_list, export
 
     if village_data is None or not build_list.list_shown(game):
+        return None
+    stamp = getattr(village_data, "timestamp", 0)
+    now = time.time() if now is None else now
+    max_export_age = export.FRESH if max_export_age is None else max_export_age
+    # Builder Base worker slots come from the export, not live counters.
+    # Never use an old or future-dated snapshot to claim a worker is free.
+    if not isinstance(stamp, (int, float)) or stamp <= 0 or not 0 <= now - stamp <= max_export_age:
         return None
     total_builders = getattr(village_data, "builder_base_builders", 0)
     if total_builders <= 0:

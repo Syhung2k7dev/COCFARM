@@ -250,3 +250,78 @@ def test_builder_scan_requires_export_and_confirmed_build_list(monkeypatch):
     village = SimpleNamespace(builder_base_builders=2, builder_finishing={})
     assert scan_builder_targets(object(), village) is None
     assert scan_builder_targets(object(), None) is None
+
+
+def test_targets_from_names_rejects_names_from_unrelated_tabs(monkeypatch):
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import targets_from_names
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Archer Tower"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {2: "Barbarian King"})
+    monkeypatch.setattr(gamedata, "TROOPS", {3: "Barbarian"})
+    monkeypatch.setattr(gamedata, "SPELLS", {4: "Lightning Spell"})
+    monkeypatch.setattr(gamedata, "PETS", {5: "Unicorn"})
+    targets = targets_from_names(
+        "home",
+        {
+            "buildings": {"Archer Tower", "Barbarian", "Lightning Spell", "Unicorn"},
+            "army": {"Barbarian King", "Barbarian", "Lightning Spell"},
+            "pets": {"Unicorn", "Archer Tower"},
+        },
+        free_builders=1,
+        free_lab=1,
+    )
+    assert {(item.name, item.category) for item in targets} == {
+        ("Archer Tower", "buildings"),
+        ("Barbarian King", "heroes"),
+        ("Barbarian", "troops"),
+        ("Lightning Spell", "spells"),
+        ("Unicorn", "pets"),
+    }
+
+
+def test_builder_scan_rejects_stale_or_future_dated_exports(monkeypatch):
+    from types import SimpleNamespace
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import scan_builder_targets
+
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    assert scan_builder_targets(
+        object(), SimpleNamespace(timestamp=1_000, builder_base_builders=2), now=1_301
+    ) is None
+    assert scan_builder_targets(
+        object(), SimpleNamespace(timestamp=1_001, builder_base_builders=2), now=1_000
+    ) is None
+    assert scan_builder_targets(
+        object(), SimpleNamespace(timestamp=0, builder_base_builders=2), now=1_000
+    ) is None
+
+
+def test_builder_scan_accepts_only_fresh_export_and_verified_build_tabs(monkeypatch):
+    from types import SimpleNamespace
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import scan_builder_targets
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Crusher"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {})
+    monkeypatch.setattr(gamedata, "TROOPS", {2: "Raged Barbarian"})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
+    monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "upgradable_names", lambda game, lst, which: {
+        "buildings": {"Crusher"}, "research": {"Raged Barbarian"}
+    }[which])
+    village = SimpleNamespace(
+        timestamp=1_000,
+        builder_base_builders=2,
+        builder_finishing={"builders": (1_100,), "lab": ()},
+    )
+    targets = scan_builder_targets(object(), village, now=1_200)
+    by_name = {item.name: item for item in targets}
+    assert by_name["Crusher"].can_start is True
+    assert by_name["Raged Barbarian"].can_start is True
