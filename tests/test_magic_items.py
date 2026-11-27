@@ -416,3 +416,41 @@ def test_builder_hammer_scan_skips_busy_tab_but_keeps_lab_candidates(monkeypatch
     game = SimpleNamespace(current_tab="buildings")
     targets = scan_builder_targets(game, village, now=1_200)
     assert {target.name for target in targets} == {"Raged Barbarian"}
+
+
+def test_squads_are_not_assumed_eligible_for_fighting_books_or_hammers(monkeypatch):
+    from types import SimpleNamespace
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import (
+        UNVERIFIED_MAGIC_ITEM_TARGET_IDS,
+        running_targets,
+        targets_from_names,
+    )
+
+    squad_ids = tuple(range(4000195, 4000207))
+    assert UNVERIFIED_MAGIC_ITEM_TARGET_IDS == frozenset(squad_ids)
+    squad_names = {gamedata.TROOPS[item_id] for item_id in squad_ids}
+
+    village = SimpleNamespace(
+        timestamp=1_000,
+        finishing={item_id: (2_000,) for item_id in squad_ids},
+    )
+    # Export timers do not prove Book of Fighting eligibility.
+    assert running_targets(village, 1_200) == []
+
+    # Nor does a Build-list row alone authorize a Hammer of Fighting.
+    assert targets_from_names("home", {"army": squad_names}, free_lab=1) == []
+
+
+def test_regular_troops_remain_magic_item_targets_when_squads_are_excluded(monkeypatch):
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import targets_from_names
+
+    monkeypatch.setattr(gamedata, "TROOPS", {
+        4000000: "Barbarian",
+        4000195: "Barch Squad",
+    })
+    targets = targets_from_names(
+        "home", {"army": {"Barbarian", "Barch Squad"}}, free_lab=1
+    )
+    assert [target.name for target in targets] == ["Barbarian"]

@@ -1243,3 +1243,20 @@ A further runtime review distinguishes two inventories that must not be conflate
 - Do not solve this by turning on `use_snacks`: that would consume all currently usable snacks rather than only items whose effect and target are approved by the upgrade policy.
 
 The research-only settings comment and picker label were also updated to include Squads and siege machines consistently.
+
+
+### Squad Magic Item eligibility guard (2026-11-28)
+
+Official Supercell Support describes Squads as fixed groups upgraded in the Laboratory at TH19. Its Magic Items page separately describes Book of Fighting as completing a troop upgrade timer and Hammer of Fighting as upgrading a troop, but does not explicitly name Squads as eligible targets. Laboratory placement alone is not sufficient proof that a Squad can be targeted by either item.
+
+Accordingly, `farmbot/tasks/magic_items.py` excludes Squad IDs `4000195`–`4000206` from both:
+- Home export timer candidates for Books (including Book of Everything, which uses the same target resolver).
+- Build-list candidates for Hammers.
+
+This does **not** remove Squads from `HOME_RESEARCH`, research selection, or generic troop data. Regular troop handling remains unchanged. Re-enable Squad item targeting only after a current in-game item eligibility screen or authoritative Supercell statement confirms it.
+
+References:
+- [Supercell Support — Squads](https://support.supercell.com/clash-of-clans/en/articles/squads.html)
+- [Supercell Support — Magic Items & The Trader](https://support.supercell.com/clash-of-clans/en/articles/magic-items-and-the-trader.html)
+
+Regression tests cover all 12 IDs, both Book and Hammer target-discovery paths, and continued eligibility of an ordinary troop. Tests are added but have not been executed in this GitHub-only session.

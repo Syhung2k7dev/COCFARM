@@ -20,6 +20,13 @@ ItemKind = Literal["book", "hammer"]
 Village = Literal["home", "builder"]
 Category = Literal["buildings", "troops", "spells", "heroes", "pets"]
 
+# Squads are upgradeable in the Laboratory, but Supercell's Magic Items
+# documentation does not explicitly confirm Book/Hammer of Fighting support.
+# Keep them out of automatic item targeting until the in-game eligibility
+# dialog has been positively observed.
+UNVERIFIED_MAGIC_ITEM_TARGET_IDS = frozenset(range(4000195, 4000207))
+
+
 
 @dataclass(frozen=True)
 class MagicItemSpec:
@@ -151,6 +158,8 @@ def running_targets(village, now: float, max_export_age: int | None = None) -> l
     }
     found: list[UpgradeTarget] = []
     for game_id, endings in village.finishing.items():
+        if game_id in UNVERIFIED_MAGIC_ITEM_TARGET_IDS:
+            continue
         known = by_id.get(game_id)
         if known is None:
             continue
@@ -188,13 +197,18 @@ def targets_from_names(village: Village, names_by_tab: dict[str, set[str]],
     buildings = set(gamedata.BUILDINGS.values()) | set(gamedata.TRAPS.values())
     heroes = set(gamedata.HEROES.values())
     troops = set(gamedata.TROOPS.values())
+    unverified_squads = {
+        gamedata.TROOPS[item_id]
+        for item_id in UNVERIFIED_MAGIC_ITEM_TARGET_IDS
+        if item_id in gamedata.TROOPS
+    }
     spells = set(gamedata.SPELLS.values())
     pets = set(gamedata.PETS.values())
 
     found: dict[tuple[str, str], UpgradeTarget] = {}
     for tab, names in names_by_tab.items():
         for name in names:
-            if not name or not name.strip():
+            if not name or not name.strip() or name in unverified_squads:
                 continue
             # Names are accepted only from tabs whose OCR dictionary can
             # legitimately contain that kind of upgrade. This prevents a
