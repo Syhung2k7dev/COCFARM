@@ -1156,11 +1156,11 @@ A deeper source review corrects the earlier broad statement that Helpers were mi
 - [Upstream Smasher guardian](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/guardians/smasher.json)
 - [Upstream Logger guardian](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/guardians/logger.json)
 - [Upstream Builder's Apprentice](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/other/helpers/builders-apprentice.json)
-- [Upstream Lab Assistant](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/data/home/other/helpers/lab-assistant.json)
+- [Upstream Lab Assistant](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/other/helpers/lab-assistant.json)
 - [Upstream Prospector](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/other/helpers/prospector.json)
-- [Upstream Alchemist](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/data/home/other/helpers/alchemist.json)
-- [Upstream Hero Hunter crafted defense](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/data/home/crafted-defenses/hero-hunter.json)
-- [Upstream Hook Tower crafted defense](https://github.com/chiefpansancancolt/clash-of-clans-data/blob/main/data/home/crafted-defenses/hook-tower.json)
-- [Upstream crafted defense catalogue](https://github.com/chiefpansancancolt/clash-of-clans-data/tree/main/data/home/crafted-defenses)
+- [Upstream Alchemist](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/other/helpers/alchemist.json)
+- [Upstream Hero Hunter crafted defense](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/crafted-defenses/hero-hunter.json)
+- [Upstream Hook Tower crafted defense](https://github.com/chiefpansancolt/clash-of-clans-data/blob/main/data/home/crafted-defenses/hook-tower.json)
+- [Upstream crafted defense catalogue](https://github.com/chiefpansancolt/clash-of-clans-data/tree/main/data/home/crafted-defenses)
 
 No runtime code was changed in this feature-coverage review. The audit records the confirmed boundaries and the evidence still needed before adding automation.
