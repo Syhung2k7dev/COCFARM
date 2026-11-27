@@ -199,3 +199,7 @@ The libraries it bundles (Qt, Fluent Widgets, OpenCV and others) are listed with
 their licenses in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 </details>
+
+## Development reference
+
+The source-level research, repository comparisons, upstream issue/PR reviews, implementation notes and reusable research links are collected in the [COCFARM research audit](docs/COCFARM_RESEARCH_AUDIT.md).
