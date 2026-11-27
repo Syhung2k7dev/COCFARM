@@ -1379,3 +1379,16 @@ COCFARM's Build List path is more systematic: it filters by resource and upgrade
 ### Magic Items planner input hardening
 
 A runtime inventory quantity is not trusted solely because the function is annotated with `int`: Python treats booleans as integers, and a decimal value can compare as if it meets capacity. `choose_target()` now rejects booleans, floats, strings, null and negative quantities before selecting any target. Added regression tests for malformed quantities and the valid exact-capacity case. This is a fail-closed policy-layer improvement only; it does not add inventory OCR, item selection, tapping, or consumption. Tests were added but not executed in this GitHub-only session.
+
+
+### Guardian and Crafted Defense schema re-check (2026-11-28)
+
+Re-opened the current `chiefpansancolt/clash-of-clans-data` tree and the raw records for Longshot, Smasher, Logger, Hero Hunter, Hot Candle, Cake-A-Pult and Crafting Station.
+
+- The third-party data separates Guardians (`data/home/guardians/*.json`) from ordinary buildings, and Crafted Defenses (`data/home/crafted-defenses/*.json`) from the Crafting Station building. This confirms the existing decision not to put Guardians or module IDs into `gamedata.BUILDINGS`.
+- Guardian records use entity IDs 107000000 (Longshot), 107000001 (Smasher), and 107000008 (Logger). The records describe level, cost and duration, but this dataset is not an authoritative account-export schema. The inspected Smasher record still has only five levels, so it is stale against Supercell's TH19 release note confirming Smasher level 10. Do not import its level caps or build costs as live truth.
+- Crafted Defense records are composed of a defense identity plus independently upgradeable module IDs. Current phase examples include Hero Hunter (103000012; modules 102000036–102000038), Hot Candle (103000011; modules 102000033–102000035), and Cake-A-Pult (103000013; modules 102000039–102000041). The three modules have separate resource costs, timers and Sparky Stone requirements. Treating these as a single ordinary building upgrade would be incorrect.
+- The current `townhall.Village` parser models ordinary buildings, traps, troop/research timers, pets and Builder Base timers. It does not model Guardian level/timer state or Crafted Defense module levels/timers. No Guardian or Crafted Defense field was added because the inspected public dataset does not establish the account-export field names or semantics. Guessing those fields could cause incorrect target selection or Magic Item use.
+- Next safe implementation prerequisite: obtain a real, redacted village export from an account with Guardian Shrine and an active Guardian upgrade, and another with an active Crafted Defense module upgrade; compare the JSON keys and timer records. Until then, keep both features visible as unsupported/unknown to automation and exclude them from automatic Magic Item targeting.
+
+This is a source/schema audit only; no gameplay assets or external data files were copied into COCFARM.
