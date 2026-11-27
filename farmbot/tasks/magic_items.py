@@ -119,6 +119,7 @@ def plan_uses(quantities: dict[str, int], targets: list[UpgradeTarget]) -> list[
     candidates = sorted(
         (item for item_id, item in ITEMS.items()
          if isinstance(quantities.get(item_id), int)
+         and not isinstance(quantities.get(item_id), bool)
          and quantities[item_id] >= item.max_capacity),
         key=lambda item: (len(item.applies_to), item.item_id),
     )
