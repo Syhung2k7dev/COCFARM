@@ -994,3 +994,6 @@ The policy layer now also converts confirmed Home Village upgrade end-times from
 ### Build-list candidate discovery
 
 The Magic Items policy can now turn COCFARM's fully OCR-read Home Village Build list into Hammer candidates. It checks Buildings & Heroes, Army Upgrades, and Pets tabs, classifies only names already present in COCFARM's game-data maps, and marks a candidate startable only when the relevant Builder or Laboratory counter is positively read as free. The scanner requires the Build list to be visibly open, verifies each tab, and aborts the whole scan on an unreadable tab or missing screen state. It never taps an upgrade row or any paid button. Equipment and unknown OCR names are excluded. This is target discovery only; the Magic Items inventory UI and final Hammer button still need verified templates/screens.
+
+
+The same candidate-discovery layer now supports the Builder Base Build list. It verifies both tabs and the full OCR pass, then derives free Master Builder/OTTO and Star Laboratory slots from the village export's occupied-slot timers. Missing export data means no Builder Base Hammer candidate is marked startable. Builder Base books remain unsupported because the export records only which slot is busy, not the exact upgrade target.
