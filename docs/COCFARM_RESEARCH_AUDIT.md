@@ -1008,3 +1008,6 @@ This is deliberately a calculation layer only: it is not connected to the farmin
 Rules verified against Supercell support:
 - [Magic Items & The Trader](https://support.supercell.com/clash-of-clans/en/articles/magic-items-and-the-trader.html)
 - [Maintenance Breaks](https://support.supercell.com/clash-of-clans/en/articles/maintenance-breaks-2.html)
+
+
+Builder Base Book target discovery remains unsupported: the export identifies occupied worker slots but not the exact upgraded item, and the current UI/OCR path does not yet provide a sufficiently reliable row-to-slot association. Do not infer the item from the first OCR line. Hammer scans now skip an entire tab when its in-progress marker is visible; this conservative rule avoids mistaking the active row for a startable target while still allowing other tabs with free workers to be considered.

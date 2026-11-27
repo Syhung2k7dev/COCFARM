@@ -83,7 +83,7 @@ def test_running_targets_uses_only_known_home_export_timers(monkeypatch):
     monkeypatch.setattr(gamedata, "SPELLS", {4: "Lightning Spell"})
     monkeypatch.setattr(gamedata, "HEROES", {5: "Barbarian King"})
     monkeypatch.setattr(gamedata, "PETS", {6: "Unicorn"})
-    village = SimpleNamespace(finishing={
+    village = SimpleNamespace(timestamp=1_000, finishing={
         1: (1_200, 1_800), 3: (1_500,), 4: (900,), 6: (2_400,), 999: (5_000,)
     })
 
@@ -210,6 +210,7 @@ def test_home_scan_aborts_if_any_tab_or_ocr_is_unverified(monkeypatch):
     monkeypatch.setattr(build_list, "list_shown", lambda game: True)
     monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
     monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: False)
     calls = []
 
     def names(game, lst, which):
@@ -228,6 +229,7 @@ def test_home_scan_uses_only_verified_tabs_and_slot_counters(monkeypatch):
     monkeypatch.setattr(build_list, "list_shown", lambda game: True)
     monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
     monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: False)
     monkeypatch.setattr(build_list, "upgradable_names", lambda game, lst, which: {
         "buildings": {"Archer Tower"},
         "research": {"Barbarian"},
@@ -313,6 +315,7 @@ def test_builder_scan_accepts_only_fresh_export_and_verified_build_tabs(monkeypa
     monkeypatch.setattr(build_list, "list_shown", lambda game: True)
     monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
     monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: False)
     monkeypatch.setattr(build_list, "upgradable_names", lambda game, lst, which: {
         "buildings": {"Crusher"}, "research": {"Raged Barbarian"}
     }[which])
@@ -325,3 +328,95 @@ def test_builder_scan_accepts_only_fresh_export_and_verified_build_tabs(monkeypa
     by_name = {item.name: item for item in targets}
     assert by_name["Crusher"].can_start is True
     assert by_name["Raged Barbarian"].can_start is True
+
+
+def test_home_book_targets_require_a_fresh_village_export():
+    from types import SimpleNamespace
+    from farmbot.tasks.magic_items import running_targets
+
+    stale = SimpleNamespace(timestamp=1_000, finishing={1: (2_000,)})
+    future = SimpleNamespace(timestamp=1_201, finishing={1: (2_000,)})
+    missing = SimpleNamespace(finishing={1: (2_000,)})
+    assert running_targets(stale, 1_301) is None
+    assert running_targets(future, 1_200) is None
+    assert running_targets(missing, 1_200) is None
+
+
+def test_home_book_targets_return_empty_for_a_fresh_export_with_no_active_timers():
+    from types import SimpleNamespace
+    from farmbot.tasks.magic_items import running_targets
+
+    village = SimpleNamespace(timestamp=1_000, finishing={})
+    assert running_targets(village, 1_200) == []
+
+
+def test_home_hammer_scan_skips_busy_tab_but_keeps_other_tabs(monkeypatch):
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import scan_home_targets
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Archer Tower", 2: "Cannon"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {})
+    monkeypatch.setattr(gamedata, "TROOPS", {3: "Barbarian"})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
+    monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: game.current_tab == "buildings")
+    monkeypatch.setattr(build_list, "upgradable_names", lambda game, lst, which: {
+        "buildings": {"Archer Tower", "Cannon"},
+        "research": {"Barbarian"},
+    }[which])
+    monkeypatch.setattr(build_list, "free_builders", lambda game: 1)
+    monkeypatch.setattr(build_list, "free_lab", lambda game: 1)
+        [(100, "Archer Tower")] if which == "buildings" else []
+    ))
+    game = type("FakeGame", (), {"current_tab": "buildings"})()
+    monkeypatch.setattr(build_list, "open_tab", lambda game, tab, lst: setattr(game, "current_tab", tab))
+
+    targets = scan_home_targets(game)
+    assert {target.name for target in targets} == {"Barbarian"}
+
+
+def test_hammer_scan_skips_entire_busy_tab_without_relying_on_ocr(monkeypatch):
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import _exclude_busy_row
+
+    monkeypatch.setattr(build_list, "busy", lambda game: True)
+    assert _exclude_busy_row(object(), {"Archer Tower"}) == set()
+
+
+def test_builder_hammer_scan_skips_busy_tab_but_keeps_lab_candidates(monkeypatch):
+    from types import SimpleNamespace
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import scan_builder_targets
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Crusher", 2: "Cannon"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {})
+    monkeypatch.setattr(gamedata, "TROOPS", {3: "Raged Barbarian"})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda game, tab, lst: setattr(game, "current_tab", tab))
+    monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: game.current_tab == "buildings")
+    monkeypatch.setattr(build_list, "upgradable_names", lambda game, lst, which: {
+        "buildings": {"Crusher", "Cannon"},
+        "research": {"Raged Barbarian"},
+    }[which])
+    monkeypatch.setattr(build_list, "free_builders", lambda game: 1)
+    monkeypatch.setattr(build_list, "free_lab", lambda game: 1)
+        [(100, "Crusher")] if which == "buildings" else []
+    ))
+    village = SimpleNamespace(
+        timestamp=1_000,
+        builder_base_builders=2,
+        builder_finishing={"builders": (1_100,), "lab": ()},
+    )
+    game = SimpleNamespace(current_tab="buildings")
+    targets = scan_builder_targets(game, village, now=1_200)
+    assert {target.name for target in targets} == {"Raged Barbarian"}

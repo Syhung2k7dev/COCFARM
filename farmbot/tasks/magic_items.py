@@ -108,7 +108,22 @@ def choose_target(item_id: str, quantity: int, targets: list[UpgradeTarget]) -> 
                                              target.name.casefold(), target.target_id))
 
 
-def running_targets(village, now: float) -> list[UpgradeTarget]:
+
+def _fresh_export(village_data, now: float, max_age: int | None = None) -> bool:
+    """Whether the village export is recent enough for target/timer decisions."""
+    from farmbot.tasks import export
+
+    stamp = getattr(village_data, "timestamp", 0)
+    max_age = export.FRESH if max_age is None else max_age
+    return (
+        isinstance(stamp, (int, float))
+        and stamp > 0
+        and isinstance(now, (int, float))
+        and 0 <= now - stamp <= max_age
+    )
+
+
+def running_targets(village, now: float, max_export_age: int | None = None) -> list[UpgradeTarget] | None:
     """Turn the account export's confirmed Home Village timers into book targets.
 
     The export stores end timestamps by game item ID. Only IDs present in
@@ -116,8 +131,8 @@ def running_targets(village, now: float) -> list[UpgradeTarget]:
     Builder Base timers in the export are slot-only (no item identity), so
     they are deliberately not guessed here.
     """
-    if village is None:
-        return []
+    if village is None or not _fresh_export(village, now, max_export_age):
+        return None
 
     from farmbot import gamedata
 
@@ -220,6 +235,20 @@ def targets_from_names(village: Village, names_by_tab: dict[str, set[str]],
     return sorted(found.values(), key=lambda target: (target.category, target.name.casefold()))
 
 
+
+def _exclude_busy_row(game: Game, names: set[str]) -> set[str]:
+    """Skip a whole tab while its first row is upgrading.
+
+    The OCR list includes the active row. Rather than risk mistaking a later
+    row for it when the first line is clipped or unreadable, don't offer any
+    Hammer targets from a tab whose busy marker is visible. Other tabs remain
+    usable if their own workers are free.
+    """
+    from farmbot.tasks import build_list
+
+    return set() if build_list.busy(game) else names
+
+
 def scan_home_targets(game: Game, priorities: dict[str, int] | None = None) -> list[UpgradeTarget] | None:
     """Read Home Village Hammer candidates from an already-open Build list.
 
@@ -239,6 +268,9 @@ def scan_home_targets(game: Game, priorities: dict[str, int] | None = None) -> l
         if build_list.tab_open(game, tab, build_list.HOME) is not True:
             return None
         names = build_list.upgradable_names(game, build_list.HOME, which)
+        if names is None:
+            return None
+        names = _exclude_busy_row(game, names)
         if names is None:
             return None
         names_by_tab[tab] = names
@@ -264,16 +296,14 @@ def scan_builder_targets(game: Game, village_data,
     """
     import time
 
-    from farmbot.tasks import build_list, export
+    from farmbot.tasks import build_list
 
     if village_data is None or not build_list.list_shown(game):
         return None
-    stamp = getattr(village_data, "timestamp", 0)
     now = time.time() if now is None else now
-    max_export_age = export.FRESH if max_export_age is None else max_export_age
     # Builder Base worker slots come from the export, not live counters.
     # Never use an old or future-dated snapshot to claim a worker is free.
-    if not isinstance(stamp, (int, float)) or stamp <= 0 or not 0 <= now - stamp <= max_export_age:
+    if not _fresh_export(village_data, now, max_export_age):
         return None
     total_builders = getattr(village_data, "builder_base_builders", 0)
     if total_builders <= 0:
@@ -287,6 +317,9 @@ def scan_builder_targets(game: Game, village_data,
         names = build_list.upgradable_names(game, build_list.BUILDER, which)
         if names is None:
             return None
+        names = _exclude_busy_row(game, names)
+        if names is None:
+            return None
         names_by_tab[tab] = names
 
     busy = getattr(village_data, "builder_finishing", {}) or {}
@@ -294,3 +327,5 @@ def scan_builder_targets(game: Game, village_data,
     free_builders = max(0, total_builders - active_builders)
     free_lab = 0 if busy.get("lab") else 1
     return targets_from_names("builder", names_by_tab, priorities, free_builders, free_lab)
+
+
