@@ -325,3 +325,89 @@ def test_builder_scan_accepts_only_fresh_export_and_verified_build_tabs(monkeypa
     by_name = {item.name: item for item in targets}
     assert by_name["Crusher"].can_start is True
     assert by_name["Raged Barbarian"].can_start is True
+
+
+def test_builder_base_book_scan_requires_fresh_export_and_known_busy_row(monkeypatch):
+    from types import SimpleNamespace
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks import build_list, row_names
+    from farmbot.tasks.magic_items import scan_builder_running_targets
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Crusher"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {})
+    monkeypatch.setattr(gamedata, "TROOPS", {2: "Raged Barbarian"})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
+    monkeypatch.setattr(build_list, "tab_open", lambda game, tab, lst: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: game.current_tab == "buildings")
+    monkeypatch.setattr(row_names, "read", lambda game, lst, which, green=False: (
+        [(100, "Crusher")] if which == "buildings" else []
+    ))
+    game = SimpleNamespace(current_tab="buildings")
+    # open_tab in this fake also changes the selected tab.
+    monkeypatch.setattr(build_list, "open_tab", lambda game, tab, lst: setattr(game, "current_tab", tab))
+    village = SimpleNamespace(
+        timestamp=1_000,
+        builder_finishing={"builders": (2_000,), "lab": ()},
+    )
+
+    targets = scan_builder_running_targets(game, village, now=1_200)
+    assert len(targets) == 1
+    assert targets[0].name == "Crusher"
+    assert targets[0].category == "buildings"
+    assert targets[0].running is True
+    assert targets[0].remaining_seconds == 800
+    assert targets[0].village == "builder"
+
+
+def test_builder_base_book_scan_refuses_multiple_slot_timers(monkeypatch):
+    from types import SimpleNamespace
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import scan_builder_running_targets
+
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
+    monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: True)
+    village = SimpleNamespace(
+        timestamp=1_000,
+        builder_finishing={"builders": (2_000, 3_000), "lab": ()},
+    )
+    assert scan_builder_running_targets(object(), village, now=1_200) is None
+
+
+def test_builder_base_book_scan_refuses_unreadable_or_unknown_busy_row(monkeypatch):
+    from types import SimpleNamespace
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks import build_list, row_names
+    from farmbot.tasks.magic_items import scan_builder_running_targets
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Crusher"})
+    monkeypatch.setattr(gamedata, "TRAPS", {})
+    monkeypatch.setattr(gamedata, "HEROES", {})
+    monkeypatch.setattr(gamedata, "TROOPS", {})
+    monkeypatch.setattr(gamedata, "SPELLS", {})
+    monkeypatch.setattr(gamedata, "PETS", {})
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
+    monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: True)
+    monkeypatch.setattr(row_names, "read", lambda *args, **kwargs: [(100, None)])
+    village = SimpleNamespace(timestamp=1_000, builder_finishing={"builders": (2_000,), "lab": ()})
+    assert scan_builder_running_targets(object(), village, now=1_200) is None
+
+
+def test_builder_base_book_scan_returns_empty_only_after_both_tabs_confirmed_idle(monkeypatch):
+    from types import SimpleNamespace
+    from farmbot.tasks import build_list
+    from farmbot.tasks.magic_items import scan_builder_running_targets
+
+    monkeypatch.setattr(build_list, "list_shown", lambda game: True)
+    monkeypatch.setattr(build_list, "open_tab", lambda *args: None)
+    monkeypatch.setattr(build_list, "tab_open", lambda *args: True)
+    monkeypatch.setattr(build_list, "busy", lambda game: False)
+    village = SimpleNamespace(timestamp=1_000, builder_finishing={})
+    assert scan_builder_running_targets(object(), village, now=1_200) == []

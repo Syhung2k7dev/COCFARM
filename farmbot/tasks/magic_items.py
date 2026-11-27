@@ -294,3 +294,81 @@ def scan_builder_targets(game: Game, village_data,
     free_builders = max(0, total_builders - active_builders)
     free_lab = 0 if busy.get("lab") else 1
     return targets_from_names("builder", names_by_tab, priorities, free_builders, free_lab)
+
+
+def scan_builder_running_targets(game: Game, village_data,
+                                 now: float | None = None,
+                                 max_export_age: int | None = None) -> list[UpgradeTarget] | None:
+    """Identify Builder Base book targets only when UI and export agree.
+
+    The export names Builder Base worker slots but not the item in each slot.
+    The Build list can identify the first in-progress row. We pair those
+    sources only when exactly one timer exists for that slot, the export is
+    fresh, the matching tab is confirmed open, its busy marker is visible,
+    and the first OCR line is a known game item. Any disagreement returns
+    None; an empty list means both tabs were checked and no upgrade was busy.
+    """
+    import time
+    from dataclasses import replace
+
+    from farmbot.tasks import build_list, export, row_names
+
+    if village_data is None or not build_list.list_shown(game):
+        return None
+    stamp = getattr(village_data, "timestamp", 0)
+    now = time.time() if now is None else now
+    max_export_age = export.FRESH if max_export_age is None else max_export_age
+    if not isinstance(stamp, (int, float)) or stamp <= 0 or not 0 <= now - stamp <= max_export_age:
+        return None
+
+    busy_slots = getattr(village_data, "builder_finishing", {}) or {}
+    found: list[UpgradeTarget] = []
+    for tab, which, slot in (
+        ("buildings", "buildings", "builders"),
+        ("army", "research", "lab"),
+    ):
+        build_list.open_tab(game, tab, build_list.BUILDER)
+        if build_list.tab_open(game, tab, build_list.BUILDER) is not True:
+            return None
+
+        is_busy = build_list.busy(game)
+        endings = tuple(busy_slots.get(slot, ()))
+        if not is_busy:
+            if endings:
+                return None
+            continue
+        if len(endings) != 1:
+            return None
+
+        lines = row_names.read(game, build_list.BUILDER, which)
+        if lines is None:
+            return None
+        lines = sorted(lines, key=lambda line: line[0])
+        if not lines or lines[0][1] is None:
+            lines = row_names.read(game, build_list.BUILDER, which, green=True)
+            if lines is None:
+                return None
+            lines = sorted(lines, key=lambda line: line[0])
+        if not lines or lines[0][1] is None:
+            return None
+
+        name = lines[0][1]
+        candidates = targets_from_names(
+            "builder", {tab: {name}}, free_builders=0, free_lab=0
+        )
+        if len(candidates) != 1:
+            return None
+        end = endings[0]
+        if not isinstance(end, (int, float)):
+            return None
+        remaining = int(end - now)
+        if remaining <= 0:
+            return None
+        found.append(replace(
+            candidates[0],
+            target_id=f"builder:running:{slot}:{name.casefold()}",
+            remaining_seconds=remaining,
+            running=True,
+        ))
+
+    return found

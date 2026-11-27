@@ -1008,3 +1008,6 @@ This is deliberately a calculation layer only: it is not connected to the farmin
 Rules verified against Supercell support:
 - [Magic Items & The Trader](https://support.supercell.com/clash-of-clans/en/articles/magic-items-and-the-trader.html)
 - [Maintenance Breaks](https://support.supercell.com/clash-of-clans/en/articles/maintenance-breaks-2.html)
+
+
+Builder Base Book target discovery has since been extended, but remains deliberately narrow: COCFARM now pairs the Build list's visible in-progress row with the village export only when that slot has exactly one timer, the export is fresh, the tab/busy marker are verified, and the first OCR line maps to a known game-data name. Multiple timers in one slot, stale exports, unknown names, or any mismatch return an unknown result; they are never guessed.
