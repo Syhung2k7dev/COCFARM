@@ -70,3 +70,28 @@ def test_book_of_heroes_accepts_heroes_and_pets():
     hero = target("hero", "Barbarian King", category="heroes", running=True, remaining_seconds=300)
     pet = target("pet", "Unicorn", category="pets", running=True, remaining_seconds=600)
     assert choose_target("book-of-heroes", 1, [hero, pet]) == pet
+
+
+def test_running_targets_uses_only_known_home_export_timers(monkeypatch):
+    from types import SimpleNamespace
+    import farmbot.gamedata as gamedata
+    from farmbot.tasks.magic_items import running_targets
+
+    monkeypatch.setattr(gamedata, "BUILDINGS", {1: "Archer Tower"})
+    monkeypatch.setattr(gamedata, "TRAPS", {2: "Cannon"})
+    monkeypatch.setattr(gamedata, "TROOPS", {3: "Barbarian"})
+    monkeypatch.setattr(gamedata, "SPELLS", {4: "Lightning Spell"})
+    monkeypatch.setattr(gamedata, "HEROES", {5: "Barbarian King"})
+    monkeypatch.setattr(gamedata, "PETS", {6: "Unicorn"})
+    village = SimpleNamespace(finishing={
+        1: (1_200, 1_800), 3: (1_500,), 4: (900,), 6: (2_400,), 999: (5_000,)
+    })
+
+    targets = running_targets(village, 1_000)
+    assert {(item.name, item.category, item.remaining_seconds) for item in targets} == {
+        ("Archer Tower", "buildings", 200),
+        ("Archer Tower", "buildings", 800),
+        ("Barbarian", "troops", 500),
+        ("Unicorn", "pets", 1_400),
+    }
+    assert all(item.village == "home" and item.running for item in targets)

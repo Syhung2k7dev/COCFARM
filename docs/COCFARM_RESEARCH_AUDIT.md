@@ -986,3 +986,6 @@ The COCFARM branch now has a pure, testable policy module at `farmbot/tasks/magi
 This is **policy logic only**, not yet a live inventory scanner or click executor. The current COCFARM tree has no Magic Items inventory templates or confirmed navigation/target-screen captures. Do not add guessed coordinates or generic taps. The live integration still needs verified templates/screenshots, item-count recognition, target re-identification immediately before action, and post-use verification. Until those are implemented, the policy module does not consume any in-game items.
 
 Capacity/applicability reference reviewed: [chiefpansancolt/clash-of-clans-data](https://github.com/chiefpansancolt/clash-of-clans-data/tree/main/data/magic-items) (MIT; repository snapshot pushed 2026-11-06). This is a community-maintained structured data source, not a Supercell guarantee; re-check against the live game after game updates.
+
+
+The policy layer now also converts confirmed Home Village upgrade end-times from COCFARM's own village export into book-eligible targets. It maps only recognized game IDs through `farmbot/gamedata.py`; expired timers and unknown IDs are ignored. Builder Base export timers currently identify only the occupied worker slot, not the specific item, so Builder Base book targets remain unsupported until the live target screen can identify them.

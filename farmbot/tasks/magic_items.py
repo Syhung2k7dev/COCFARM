@@ -106,3 +106,52 @@ def choose_target(item_id: str, quantity: int, targets: list[UpgradeTarget]) -> 
         return None
     return min(eligible, key=lambda target: (-target.priority, -target.remaining_seconds,
                                              target.name.casefold(), target.target_id))
+
+
+def running_targets(village, now: float) -> list[UpgradeTarget]:
+    """Turn the account export's confirmed Home Village timers into book targets.
+
+    The export stores end timestamps by game item ID. Only IDs present in
+    COCFARM's own current game-data maps are emitted; unknown IDs are skipped.
+    Builder Base timers in the export are slot-only (no item identity), so
+    they are deliberately not guessed here.
+    """
+    if village is None:
+        return []
+
+    from farmbot import gamedata
+
+    categories = {
+        "buildings": (gamedata.BUILDINGS, gamedata.TRAPS),
+        "troops": (gamedata.TROOPS,),
+        "spells": (gamedata.SPELLS,),
+        "heroes": (gamedata.HEROES,),
+        "pets": (gamedata.PETS,),
+    }
+    by_id = {
+        game_id: (category, name)
+        for category, maps in categories.items()
+        for mapping in maps
+        for game_id, name in mapping.items()
+    }
+    found: list[UpgradeTarget] = []
+    for game_id, endings in village.finishing.items():
+        known = by_id.get(game_id)
+        if known is None:
+            continue
+        category, name = known
+        for index, end in enumerate(endings):
+            remaining = int(end - now)
+            if remaining <= 0:
+                continue
+            found.append(UpgradeTarget(
+                target_id=f"home:{game_id}:{index}",
+                name=name,
+                category=category,
+                village="home",
+                remaining_seconds=remaining,
+                running=True,
+                known=True,
+                unlocked=True,
+            ))
+    return found
